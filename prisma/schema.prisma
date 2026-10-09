@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RsvpStatus {
+  CONFIRMED
+  WAITLISTED
+  CANCELLED
+}
+
+enum OutboxEventType {
+  RSVP_CREATED
+  RSVP_CANCELLED
+  RSVP_PROMOTED
+}
+
+model Event {
+  id        String   @id @default(uuid()) @db.Uuid
+  title     String
+  date      DateTime
+  location  String
+  capacity  Int
+  createdAt DateTime @default(now())
+  rsvps     Rsvp[]
+}
+
+model Rsvp {
+  id          String     @id @default(uuid()) @db.Uuid
+  eventId     String     @db.Uuid
+  name        String
+  email       String
+  status      RsvpStatus
+  createdAt   DateTime   @default(now())
+  cancelledAt DateTime?
+  event       Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, status])
+  @@index([eventId, createdAt])
+}
+
+model IdempotencyRecord {
+  id             String   @id @default(uuid()) @db.Uuid
+  key            String
+  scope          String
+  requestHash    String
+  responseStatus Int
+  responseBody   Json
+  createdAt      DateTime @default(now())
+
+  @@unique([key, scope])
+}
+
+model OutboxEvent {
+  id          String          @id @default(uuid()) @db.Uuid
+  type        OutboxEventType
+  payload     Json
+  createdAt   DateTime        @default(now())
+  publishedAt DateTime?
+  attempts    Int             @default(0)
+  lastError   String?
+
+  @@index([publishedAt, createdAt])
+}
+
+model ServerLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  level     String
+  source    String
+  message   String
+  context   Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([level, createdAt])
+  @@index([source, createdAt])
+}

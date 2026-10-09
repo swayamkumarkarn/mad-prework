@@ -1,0 +1,1477 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f5f7f4">
+    <title>Event RSVP API Console</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #18251f;
+        background: #f5f7f4;
+        font-synthesis: none;
+        text-rendering: optimizeLegibility;
+        --muted: #68766e;
+        --line: #dfe6df;
+        --green: #176b4a;
+        --green-dark: #10543a;
+        --surface: #fff;
+        --soft: #eef5ef;
+        --red: #a23535;
+      }
+
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      button, input, select { font: inherit; }
+      button { cursor: pointer; }
+      .shell { width: min(1160px, calc(100% - 40px)); margin: 0 auto; padding: 42px 0 64px; }
+      .topbar { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 34px; }
+      .brand { display: flex; align-items: center; gap: 13px; }
+      .mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; color: white; background: var(--green); font-size: 20px; font-weight: 800; }
+      .brand-name { margin: 0; font-size: 15px; font-weight: 750; letter-spacing: -.02em; }
+      .brand-caption { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+      .health { display: inline-flex; align-items: center; gap: 9px; min-height: 38px; padding: 0 13px; border: 1px solid var(--line); border-radius: 999px; color: #45544b; background: var(--surface); font-size: 12px; font-weight: 650; }
+      .health-dot { width: 8px; height: 8px; border-radius: 50%; background: #98a49c; }
+      .health[data-state="online"] .health-dot { background: #2b9a68; box-shadow: 0 0 0 3px #e4f4eb; }
+      .health[data-state="offline"] .health-dot { background: #c84343; box-shadow: 0 0 0 3px #f8e7e7; }
+      .intro { max-width: 680px; margin-bottom: 27px; }
+      .eyebrow { margin: 0 0 9px; color: var(--green); font-size: 11px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+      h1 { margin: 0; font-size: clamp(30px, 5vw, 43px); line-height: 1.08; letter-spacing: -.055em; }
+      .intro-copy { margin: 12px 0 0; color: var(--muted); font-size: 15px; line-height: 1.65; }
+      .layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(290px, .85fr); gap: 20px; align-items: start; }
+      .main-column, .side-column { display: grid; gap: 20px; }
+      .card { border: 1px solid var(--line); border-radius: 17px; background: var(--surface); box-shadow: 0 5px 18px rgb(25 48 34 / 3%); }
+      .card-head { padding: 20px 22px 0; }
+      .card-body { padding: 17px 22px 22px; }
+      .card-title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+      h2 { margin: 0; font-size: 16px; letter-spacing: -.025em; }
+      .hint { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+      .step { display: inline-grid; place-items: center; flex: 0 0 auto; width: 26px; height: 26px; border-radius: 9px; color: var(--green); background: var(--soft); font-size: 12px; font-weight: 800; }
+      .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+      .field { display: grid; gap: 6px; min-width: 0; }
+      .field.full { grid-column: 1 / -1; }
+      label { color: #425148; font-size: 11px; font-weight: 750; }
+      input, select { width: 100%; min-height: 40px; padding: 9px 11px; border: 1px solid #d9e1da; border-radius: 9px; outline: none; color: #203027; background: #fff; font-size: 13px; }
+      input:focus, select:focus { border-color: #64a785; box-shadow: 0 0 0 3px rgb(43 154 104 / 12%); }
+      input::placeholder { color: #9aa59e; }
+      .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 15px; }
+      .button { display: inline-flex; justify-content: center; align-items: center; min-height: 39px; padding: 0 14px; border: 1px solid transparent; border-radius: 9px; font-size: 12px; font-weight: 750; transition: background .15s, border-color .15s, transform .15s; }
+      .button:hover { transform: translateY(-1px); }
+      .button.primary { color: white; background: var(--green); }
+      .button.primary:hover { background: var(--green-dark); }
+      .button.secondary { border-color: var(--line); color: #35453b; background: white; }
+      .button.secondary:hover { border-color: #b9c9bd; background: #f8faf8; }
+      .button.text { min-height: 32px; padding: 0 8px; color: var(--green); background: transparent; }
+      .button.danger { min-height: 30px; padding: 0 9px; border-color: #efd7d7; color: var(--red); background: #fffafa; font-size: 11px; }
+      .button:disabled { cursor: wait; opacity: .65; transform: none; }
+      .inline-row { display: flex; gap: 9px; }
+      .inline-row input { flex: 1; }
+      .result-empty { padding: 19px; border: 1px dashed #d6e0d7; border-radius: 11px; color: #829087; background: #fafcf9; text-align: center; font-size: 12px; }
+      .result-box { overflow: auto; max-height: 280px; padding: 14px; border: 1px solid #e0e7e1; border-radius: 11px; background: #f8faf8; }
+      pre { margin: 0; color: #33483a; font: 11px/1.65 "SFMono-Regular", Consolas, "Liberation Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .section-divider { height: 1px; margin: 19px 0; background: #edf0ed; }
+      .rsvp-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin-bottom: 13px; }
+      .rsvp-toolbar .field { flex: 1 1 110px; }
+      .table-wrap { overflow-x: auto; border: 1px solid #e6ebe6; border-radius: 10px; }
+      table { width: 100%; border-collapse: collapse; text-align: left; font-size: 11px; }
+      th { padding: 10px 11px; color: #758179; background: #f7f9f7; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+      td { padding: 11px; border-top: 1px solid #edf0ed; vertical-align: middle; }
+      .guest-name { display: block; max-width: 145px; overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+      .guest-email { display: block; max-width: 165px; margin-top: 3px; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+      .status { display: inline-block; padding: 4px 7px; border-radius: 999px; color: #526158; background: #edf0ed; font-size: 9px; font-weight: 800; white-space: nowrap; }
+      .status.confirmed { color: #176b4a; background: #e6f4ec; }
+      .status.waitlisted { color: #95631a; background: #fbf1db; }
+      .status.cancelled { color: #9c3c3c; background: #f8e9e9; }
+      .pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 11px; color: var(--muted); font-size: 11px; }
+      .page-actions { display: flex; gap: 6px; }
+      .page-actions button { min-height: 29px; }
+      .notice { display: none; margin-bottom: 17px; padding: 11px 13px; border: 1px solid #d7e7dc; border-radius: 10px; color: #285a40; background: #eff8f1; font-size: 12px; line-height: 1.5; }
+      .notice.visible { display: block; }
+      .notice.error { border-color: #efd5d5; color: #8f3535; background: #fff3f3; }
+      .response-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--muted); font-size: 11px; }
+      .method { padding: 3px 6px; border-radius: 5px; color: #325f48; background: #eaf3ec; font: 10px "SFMono-Regular", Consolas, monospace; font-weight: 800; }
+      .response-code { margin-left: auto; font: 11px "SFMono-Regular", Consolas, monospace; }
+      .queue-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 15px; }
+      .queue-stat { padding: 11px; border: 1px solid #e6ebe6; border-radius: 10px; background: #fbfcfb; }
+      .queue-stat strong { display: block; color: #26382d; font-size: 18px; letter-spacing: -.04em; }
+      .queue-stat span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+      .queue-indicator { display: inline-flex; align-items: center; gap: 7px; margin: 12px 0 0; color: var(--muted); font-size: 11px; }
+      .queue-indicator::before { width: 7px; height: 7px; border-radius: 50%; background: #98a49c; content: ""; }
+      .queue-indicator.online::before { background: #2b9a68; }
+      .queue-indicator.offline::before { background: #c84343; }
+      .job-error { display: block; max-width: 230px; margin-top: 4px; color: #a23535; white-space: normal; overflow-wrap: anywhere; }
+      .test-result { display: flex; align-items: flex-start; gap: 9px; padding: 10px 0; border-bottom: 1px solid #edf0ed; }
+      .test-result:last-child { border-bottom: 0; }
+      .test-result-mark { display: grid; place-items: center; flex: 0 0 20px; height: 20px; border-radius: 50%; color: #68766e; background: #edf0ed; font-size: 11px; font-weight: 800; }
+      .test-result.pass .test-result-mark { color: #176b4a; background: #e6f4ec; }
+      .test-result.fail .test-result-mark { color: #9c3c3c; background: #f8e9e9; }
+      .test-result-name { color: #35453b; font-size: 12px; font-weight: 700; }
+      .test-result-detail { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+      .concurrency-results { display: grid; gap: 10px; }
+      .concurrency-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+      .concurrency-result-table { max-height: 340px; }
+      .log-context { display: block; max-width: 380px; max-height: 90px; margin-top: 4px; overflow: auto; color: var(--muted); font: 10px/1.45 "SFMono-Regular", Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .footer { margin-top: 24px; color: #829087; font-size: 11px; text-align: center; }
+
+      @media (max-width: 760px) {
+        .shell { width: min(100% - 28px, 560px); padding-top: 24px; }
+        .layout { grid-template-columns: 1fr; }
+        .topbar { margin-bottom: 27px; }
+      }
+      @media (max-width: 460px) {
+        .shell { width: calc(100% - 22px); }
+        .card-head { padding: 17px 16px 0; }
+        .card-body { padding: 15px 16px 17px; }
+        .form-grid { grid-template-columns: 1fr; }
+        .field.full { grid-column: auto; }
+        .health { padding: 0 10px; font-size: 11px; }
+        th, td { padding: 9px 8px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="mark" aria-hidden="true">E</div>
+          <div>
+            <p class="brand-name">Event RSVP</p>
+            <p class="brand-caption">API testing console</p>
+          </div>
+        </div>
+        <button class="health" id="healthButton" type="button" data-state="unknown">
+          <span class="health-dot" aria-hidden="true"></span>
+          <span id="healthLabel">Check API</span>
+        </button>
+      </header>
+
+      <section class="intro">
+        <p class="eyebrow">Developer tools</p>
+        <h1>Test your RSVP API.</h1>
+        <p class="intro-copy">Create events, register guests, inspect responses, and try cancellations from one place. Requests go directly to this API server.</p>
+      </section>
+
+      <div class="notice" id="notice" role="status" aria-live="polite"></div>
+
+      <div class="layout">
+        <div class="main-column">
+          <section class="card">
+            <div class="card-head">
+              <div class="card-title-row">
+                <div>
+                  <h2>Webhook worker queue</h2>
+                  <p class="hint">GET /worker/queue · BullMQ status and recent deliveries.</p>
+                </div>
+                <span class="step">↻</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="actions" style="margin-top: 0; margin-bottom: 13px">
+                <button class="button secondary" id="refreshQueueButton" type="button">Refresh queue</button>
+                <button class="button primary" id="triggerWebhookTestButton" type="button">Trigger test webhook</button>
+              </div>
+              <p class="hint" style="margin: 0 0 12px">Triggers a real delivery to your configured webhook URL when a worker is running. Use only a webhook receiver you control.</p>
+              <div id="queueContent">
+                <div class="result-empty">Refresh to see worker status and queue jobs.</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div class="card-title-row">
+                <div>
+                  <h2>RSVP concurrency test</h2>
+                  <p class="hint">Send simultaneous registrations and verify capacity and waitlist behavior.</p>
+                </div>
+                <span class="step">↗</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <form id="concurrencyForm">
+                <div class="form-grid">
+                  <div class="field">
+                    <label for="concurrencyCapacity">Event capacity</label>
+                    <input id="concurrencyCapacity" type="number" min="1" max="99" value="3" required>
+                  </div>
+                  <div class="field">
+                    <label for="concurrencyRequests">Simultaneous requests</label>
+                    <input id="concurrencyRequests" type="number" min="2" max="100" value="10" required>
+                  </div>
+                </div>
+                <div class="actions">
+                  <button class="button primary" id="runConcurrencyButton" type="submit">Run concurrency test</button>
+                </div>
+              </form>
+              <div class="section-divider"></div>
+              <p class="hint">This creates a new event, test RSVPs, and webhook outbox jobs that are kept in your database and queue. Use a local test database. The webhook worker may deliver notifications to your configured receiver.</p>
+              <div class="section-divider"></div>
+              <div id="concurrencyResults">
+                <div class="result-empty">Run the test to see each concurrent response and the final capacity counts.</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div class="card-title-row">
+                <div>
+                  <h2>Concurrent RSVP cancellation test</h2>
+                  <p class="hint">Cancel the same confirmed RSVP simultaneously and check idempotency and waitlist promotion.</p>
+                </div>
+                <span class="step">↻</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <form id="cancelConcurrencyForm">
+                <div class="field" style="max-width: 230px">
+                  <label for="cancelConcurrencyRequests">Simultaneous cancellation requests</label>
+                  <input id="cancelConcurrencyRequests" type="number" min="2" max="50" value="10" required>
+                </div>
+                <div class="actions">
+                  <button class="button primary" id="runCancelConcurrencyButton" type="submit">Run cancellation race test</button>
+                </div>
+              </form>
+              <div class="section-divider"></div>
+              <p class="hint">Creates a test event, three RSVPs, and webhook outbox jobs that remain in your database and queue. Use a local test database. The worker may deliver notifications to your configured receiver.</p>
+              <div class="section-divider"></div>
+              <div id="cancelConcurrencyResults">
+                <div class="result-empty">Run the test to see concurrent cancellation responses and verify that only one guest is promoted.</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div class="card-title-row">
+                <div>
+                  <h2>API smoke tests</h2>
+                  <p class="hint">Check live health, event listing, and worker queue endpoints.</p>
+                </div>
+                <span class="step">✓</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="actions" style="margin-top: 0; margin-bottom: 13px">
+                <button class="button primary" id="runApiTestsButton" type="button">Run API tests</button>
+              </div>
+              <div id="apiTestResults">
+                <div class="result-empty">Run the checks to see live endpoint test results.</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div class="card-title-row">
+                <div>
+                  <h2>All events</h2>
+                  <p class="hint">GET /events · Browse events and RSVP counts.</p>
+                </div>
+                <span class="step">00</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="actions" style="margin-top: 0; margin-bottom: 13px">
+                <button class="button secondary" id="listEventsButton" type="button">Load all events</button>
+              </div>
+              <div id="eventsList">
+                <div class="result-empty">Load events to browse what is in the database.</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div class="card-title-row">
+                <div>
+                  <h2>Server logs</h2>
+                  <p class="hint">Persistent API, worker, and outbox logs from PostgreSQL.</p>
+                </div>
+                <span class="step">≡</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="rsvp-toolbar">
+                <div class="field">
+                  <label for="logLevelFilter">Level</label>
+                  <select id="logLevelFilter">
+                    <option value="">All levels</option>
+                    <option value="INFO">Info</option>
+                    <option value="WARN">Warning</option>
+                    <option value="ERROR">Error</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="logSourceFilter">Source</label>
+                  <select id="logSourceFilter">
+                    <option value="">All sources</option>
+                    <option value="API">API</option>
+                    <option value="WORKER">Worker</option>
+                    <option value="OUTBOX">Outbox</option>
+                  </select>
+                </div>
+                <button class="button secondary" id="loadLogsButton" type="button">Load logs</button>
+              </div>
+              <div id="serverLogs">
+                <div class="result-empty">Load logs to view recent server activity.</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div class="card-title-row">
+                <div>
+                  <h2>Create an event</h2>
+                  <p class="hint">POST /events</p>
+                </div>
+                <span class="step">01</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <form id="eventForm">
+                <div class="form-grid">
+                  <div class="field full">
+                    <label for="eventTitle">Event name</label>
+                    <input id="eventTitle" name="title" required maxlength="200" placeholder="e.g. Product community meetup">
+                  </div>
+                  <div class="field">
+                    <label for="eventDate">Date and time</label>
+                    <input id="eventDate" name="date" type="datetime-local" required>
+                  </div>
+                  <div class="field">
+                    <label for="eventCapacity">Guest capacity</label>
+                    <input id="eventCapacity" name="capacity" type="number" min="1" step="1" value="25" required>
+                  </div>
+                  <div class="field full">
+                    <label for="eventLocation">Location</label>
+                    <input id="eventLocation" name="location" required maxlength="300" placeholder="e.g. Bengaluru">
+                  </div>
+                </div>
+                <div class="actions">
+                  <button class="button primary" type="submit">Create event</button>
+                </div>
+              </form>
+              <div class="section-divider"></div>
+              <div class="field">
+                <label for="eventId">Event ID</label>
+                <div class="inline-row">
+                  <input id="eventId" autocomplete="off" placeholder="Create an event or paste its UUID">
+                  <button class="button secondary" id="getEventButton" type="button">Get event</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div class="card-title-row">
+                <div>
+                  <h2>Guest RSVPs</h2>
+                  <p class="hint">Register a guest, or load RSVPs for the event above.</p>
+                </div>
+                <span class="step">02</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <form id="rsvpForm">
+                <div class="form-grid">
+                  <div class="field">
+                    <label for="guestName">Guest name</label>
+                    <input id="guestName" name="name" required maxlength="200" placeholder="Alex Morgan">
+                  </div>
+                  <div class="field">
+                    <label for="guestEmail">Email address</label>
+                    <input id="guestEmail" name="email" type="email" required maxlength="320" placeholder="alex@example.com">
+                  </div>
+                  <div class="field full">
+                    <label for="createKey">Idempotency key</label>
+                    <div class="inline-row">
+                      <input id="createKey" required maxlength="200" autocomplete="off">
+                      <button class="button secondary" id="newCreateKey" type="button" title="Generate a new key">New key</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="actions">
+                  <button class="button primary" type="submit">Register guest</button>
+                </div>
+              </form>
+              <div class="section-divider"></div>
+              <div class="rsvp-toolbar">
+                <div class="field">
+                  <label for="statusFilter">Status filter</label>
+                  <select id="statusFilter">
+                    <option value="">All statuses</option>
+                    <option value="CONFIRMED">Confirmed</option>
+                    <option value="WAITLISTED">Waitlisted</option>
+                    <option value="CANCELLED">Cancelled</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="pageLimit">Rows per page</label>
+                  <select id="pageLimit">
+                    <option value="10">10</option>
+                    <option value="20" selected>20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
+                </div>
+                <button class="button secondary" id="listRsvpsButton" type="button">Load RSVPs</button>
+              </div>
+              <div id="rsvpTable">
+                <div class="result-empty">Create or select an event, then load its RSVPs.</div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="side-column">
+          <section class="card">
+            <div class="card-head">
+              <div class="card-title-row">
+                <div>
+                  <h2>Latest response</h2>
+                  <p class="hint">The most recent API request and response.</p>
+                </div>
+                <span class="step">↗</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <div id="responseMeta" class="response-meta" hidden>
+                <span class="method" id="responseMethod"></span>
+                <span id="responsePath"></span>
+                <span class="response-code" id="responseCode"></span>
+              </div>
+              <div class="result-empty" id="responseEmpty">API responses will appear here.</div>
+              <div class="result-box" id="responseBox" hidden><pre id="responseText"></pre></div>
+            </div>
+          </section>
+          <section class="card">
+            <div class="card-head">
+              <div class="card-title-row">
+                <div>
+                  <h2>Quick guide</h2>
+                  <p class="hint">A few things to know while testing.</p>
+                </div>
+              </div>
+            </div>
+            <div class="card-body">
+              <p class="hint">A confirmed RSVP takes a spot; guests beyond the event capacity are waitlisted. Cancelling a confirmed RSVP promotes the next waitlisted guest.</p>
+              <div class="section-divider"></div>
+              <p class="hint">Each RSVP request uses an idempotency key. Reuse the same key to safely retry the same request; use a new key for a different request.</p>
+              <div class="section-divider"></div>
+              <p class="hint">The API and PostgreSQL must be running. Start them with <code>npm run dev</code> and your database setup.</p>
+            </div>
+          </section>
+        </aside>
+      </div>
+      <p class="footer">Event RSVP API · Local development console</p>
+    </main>
+
+    <script>
+      const $ = (selector) => document.querySelector(selector);
+      const notice = $('#notice');
+      let currentPage = 1;
+      let totalPages = 0;
+
+      function makeKey() {
+        return crypto.randomUUID();
+      }
+
+      function showNotice(message, isError = false) {
+        notice.textContent = message;
+        notice.classList.toggle('error', isError);
+        notice.classList.add('visible');
+      }
+
+      function hideNotice() {
+        notice.classList.remove('visible', 'error');
+        notice.textContent = '';
+      }
+
+      function setResponse(method, path, status, body) {
+        $('#responseMeta').hidden = false;
+        $('#responseMethod').textContent = method;
+        $('#responsePath').textContent = path;
+        $('#responseCode').textContent = `${status}`;
+        $('#responseEmpty').hidden = true;
+        $('#responseBox').hidden = false;
+        $('#responseText').textContent = JSON.stringify(body, null, 2);
+      }
+
+      async function request(method, path, options = {}) {
+        hideNotice();
+        const responseMeta = $('#responseMeta');
+        const fullPath = path;
+        try {
+          const response = await fetch(path, {
+            ...options,
+            method,
+            headers: {
+              ...(options.body ? { 'content-type': 'application/json' } : {}),
+              ...options.headers
+            }
+          });
+          const raw = await response.text();
+          let body;
+          try {
+            body = raw ? JSON.parse(raw) : null;
+          } catch {
+            body = raw;
+          }
+          setResponse(method, fullPath, response.status, body);
+          if (!response.ok) {
+            const message = body?.error?.message ?? `Request failed with HTTP ${response.status}`;
+            const code = body?.error?.code;
+            showNotice(code ? `${code}: ${message}` : message, true);
+            return { ok: false, body, response };
+          }
+          return { ok: true, body, response };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Network request failed';
+          setResponse(method, fullPath, 'Network error', { error: message });
+          showNotice(`Could not reach the API. Is the server running? ${message}`, true);
+          return { ok: false, body: null, response: null };
+        }
+      }
+
+      function setBusy(button, busy, busyText) {
+        if (busy) {
+          button.dataset.originalText = button.textContent;
+          button.textContent = busyText;
+          button.disabled = true;
+        } else {
+          button.textContent = button.dataset.originalText ?? button.textContent;
+          button.disabled = false;
+        }
+      }
+
+      function eventPath() {
+        const eventId = $('#eventId').value.trim();
+        if (!eventId) {
+          showNotice('Create an event or enter an event ID first.', true);
+          $('#eventId').focus();
+          return null;
+        }
+        return `/events/${encodeURIComponent(eventId)}`;
+      }
+
+      function renderEvents(events) {
+        const target = $('#eventsList');
+        if (events.length === 0) {
+          target.innerHTML = '<div class="result-empty">No events found. Create an event to get started.</div>';
+          return;
+        }
+
+        const tableWrap = document.createElement('div');
+        tableWrap.className = 'table-wrap';
+        const table = document.createElement('table');
+        const head = document.createElement('thead');
+        head.innerHTML = '<tr><th>Event</th><th>Date &amp; location</th><th>Capacity</th><th>Created</th><th>RSVP counts</th><th></th></tr>';
+        const body = document.createElement('tbody');
+        for (const event of events) {
+          const row = document.createElement('tr');
+          const eventCell = document.createElement('td');
+          const title = document.createElement('span');
+          title.className = 'guest-name';
+          title.textContent = event.title;
+          const id = document.createElement('span');
+          id.className = 'guest-email';
+          id.textContent = event.id;
+          eventCell.append(title, id);
+
+          const scheduleCell = document.createElement('td');
+          const date = document.createElement('time');
+          date.className = 'guest-email';
+          date.dateTime = event.date;
+          date.textContent = new Date(event.date).toLocaleString();
+          const location = document.createElement('span');
+          location.className = 'guest-email';
+          location.textContent = event.location;
+          scheduleCell.append(date, location);
+
+          const capacityCell = document.createElement('td');
+          capacityCell.textContent = String(event.capacity);
+
+          const createdCell = document.createElement('td');
+          const createdAt = document.createElement('time');
+          createdAt.className = 'guest-email';
+          createdAt.dateTime = event.createdAt;
+          createdAt.textContent = new Date(event.createdAt).toLocaleString();
+          createdCell.append(createdAt);
+
+          const countsCell = document.createElement('td');
+          countsCell.textContent = `${event.counts.confirmed} confirmed · ${event.counts.waitlisted} waitlisted · ${event.counts.cancelled} cancelled`;
+          const selectCell = document.createElement('td');
+          const select = document.createElement('button');
+          select.type = 'button';
+          select.className = 'button secondary';
+          select.textContent = 'Select';
+          select.addEventListener('click', () => {
+            $('#eventId').value = event.id;
+            $('#eventId').focus();
+            showNotice(`Selected "${event.title}". You can now load its RSVPs or register a guest.`);
+          });
+          selectCell.append(select);
+          row.append(eventCell, scheduleCell, capacityCell, createdCell, countsCell, selectCell);
+          body.append(row);
+        }
+        table.append(head, body);
+        tableWrap.append(table);
+        target.replaceChildren(tableWrap);
+      }
+
+      function renderServerLogs(logs, pagination) {
+        const target = $('#serverLogs');
+        const tableWrap = document.createElement('div');
+        tableWrap.className = 'table-wrap';
+        const table = document.createElement('table');
+        const head = document.createElement('thead');
+        head.innerHTML = '<tr><th>Time</th><th>Level</th><th>Source</th><th>Message / context</th></tr>';
+        const body = document.createElement('tbody');
+        if (logs.length === 0) {
+          const row = document.createElement('tr');
+          const cell = document.createElement('td');
+          cell.colSpan = 4;
+          cell.textContent = 'No logs match these filters.';
+          cell.style.color = 'var(--muted)';
+          row.append(cell);
+          body.append(row);
+        }
+
+        for (const log of logs) {
+          const row = document.createElement('tr');
+          const timeCell = document.createElement('td');
+          const time = document.createElement('time');
+          time.className = 'guest-email';
+          time.dateTime = log.createdAt;
+          time.textContent = new Date(log.createdAt).toLocaleString();
+          timeCell.append(time);
+
+          const levelCell = document.createElement('td');
+          const level = document.createElement('span');
+          level.className = `status ${log.level === 'ERROR' ? 'cancelled' : log.level === 'WARN' ? 'waitlisted' : 'confirmed'}`;
+          level.textContent = log.level;
+          levelCell.append(level);
+
+          const sourceCell = document.createElement('td');
+          sourceCell.textContent = log.source;
+          const messageCell = document.createElement('td');
+          const message = document.createElement('span');
+          message.textContent = log.message;
+          message.style.fontWeight = '700';
+          messageCell.append(message);
+          if (log.context) {
+            const context = document.createElement('code');
+            context.className = 'log-context';
+            context.textContent = JSON.stringify(log.context);
+            messageCell.append(context);
+          }
+          row.append(timeCell, levelCell, sourceCell, messageCell);
+          body.append(row);
+        }
+        table.append(head, body);
+        tableWrap.append(table);
+
+        const paginationBar = document.createElement('div');
+        paginationBar.className = 'pagination';
+        const pageInfo = document.createElement('span');
+        pageInfo.textContent = `Page ${pagination.page} of ${pagination.totalPages || 0} · ${pagination.total} logs`;
+        const pageActions = document.createElement('div');
+        pageActions.className = 'page-actions';
+        const previous = document.createElement('button');
+        previous.type = 'button';
+        previous.className = 'button secondary';
+        previous.textContent = 'Previous';
+        previous.disabled = pagination.page <= 1;
+        previous.addEventListener('click', () => loadServerLogs(pagination.page - 1));
+        const next = document.createElement('button');
+        next.type = 'button';
+        next.className = 'button secondary';
+        next.textContent = 'Next';
+        next.disabled = pagination.page >= pagination.totalPages;
+        next.addEventListener('click', () => loadServerLogs(pagination.page + 1));
+        pageActions.append(previous, next);
+        paginationBar.append(pageInfo, pageActions);
+        target.replaceChildren(tableWrap, paginationBar);
+      }
+
+      async function loadServerLogs(page = 1) {
+        const params = new URLSearchParams({ page: String(page), limit: '25' });
+        if ($('#logLevelFilter').value) params.set('level', $('#logLevelFilter').value);
+        if ($('#logSourceFilter').value) params.set('source', $('#logSourceFilter').value);
+        const result = await request('GET', `/server-logs?${params}`);
+        if (result.ok) renderServerLogs(result.body.data, result.body.pagination);
+      }
+
+      function renderQueue(queue) {
+        const target = $('#queueContent');
+        const summary = document.createElement('div');
+        summary.className = 'queue-summary';
+        for (const [key, label] of [
+          ['waiting', 'Waiting'],
+          ['active', 'Active'],
+          ['delayed', 'Delayed'],
+          ['failed', 'Failed'],
+          ['completed', 'Completed'],
+          ['workers', 'Workers online']
+        ]) {
+          const tile = document.createElement('div');
+          tile.className = 'queue-stat';
+          const value = document.createElement('strong');
+          value.textContent = String(key === 'workers' ? queue.workerCount : queue.counts[key]);
+          const caption = document.createElement('span');
+          caption.textContent = label;
+          tile.append(value, caption);
+          summary.append(tile);
+        }
+
+        const indicator = document.createElement('div');
+        indicator.className = `queue-indicator ${queue.workerCount > 0 ? 'online' : 'offline'}`;
+        indicator.textContent = queue.workerCount > 0
+          ? `${queue.queueName} · worker connected`
+          : `${queue.queueName} · no worker connected`;
+
+        const tableWrap = document.createElement('div');
+        tableWrap.className = 'table-wrap';
+        const table = document.createElement('table');
+        const head = document.createElement('thead');
+        head.innerHTML = '<tr><th>Job</th><th>Status</th><th>Attempts</th></tr>';
+        const body = document.createElement('tbody');
+        if (queue.jobs.length === 0) {
+          const row = document.createElement('tr');
+          const cell = document.createElement('td');
+          cell.colSpan = 3;
+          cell.textContent = 'No retained jobs in the queue.';
+          cell.style.color = 'var(--muted)';
+          row.append(cell);
+          body.append(row);
+        }
+
+        for (const job of queue.jobs) {
+          const row = document.createElement('tr');
+          const jobCell = document.createElement('td');
+          const name = document.createElement('span');
+          name.className = 'guest-name';
+          name.textContent = job.name;
+          const id = document.createElement('span');
+          id.className = 'guest-email';
+          id.textContent = job.id;
+          const time = document.createElement('span');
+          time.className = 'guest-email';
+          time.textContent = new Date(job.timestamp).toLocaleString();
+          jobCell.append(name, id, time);
+          if (job.failedReason) {
+            const error = document.createElement('span');
+            error.className = 'job-error';
+            error.textContent = job.failedReason;
+            jobCell.append(error);
+          }
+
+          const statusCell = document.createElement('td');
+          const status = document.createElement('span');
+          status.className = `status ${job.state === 'completed' ? 'confirmed' : job.state === 'failed' ? 'cancelled' : job.state === 'active' ? 'waitlisted' : ''}`;
+          status.textContent = job.state.toUpperCase();
+          statusCell.append(status);
+
+          const attemptsCell = document.createElement('td');
+          attemptsCell.textContent = `${job.attemptsMade} / ${job.attempts}`;
+          row.append(jobCell, statusCell, attemptsCell);
+          body.append(row);
+        }
+        table.append(head, body);
+        tableWrap.append(table);
+        target.replaceChildren(summary, indicator, tableWrap);
+      }
+
+      async function loadQueue() {
+        const button = $('#refreshQueueButton');
+        setBusy(button, true, 'Refreshing…');
+        const result = await request('GET', '/worker/queue');
+        setBusy(button, false);
+        if (result.ok) renderQueue(result.body);
+      }
+
+      async function triggerWebhookTest() {
+        if (!confirm('This queues a test webhook and may send a real request to your configured webhook URL. Continue?')) return;
+        const button = $('#triggerWebhookTestButton');
+        setBusy(button, true, 'Queueing…');
+        const result = await request('POST', '/worker/queue/test-job');
+        setBusy(button, false);
+        if (result.ok) {
+          showNotice(`Test webhook queued as job ${result.body.jobId}.`);
+          await loadQueue();
+          showNotice(`Test webhook queued as job ${result.body.jobId}.`);
+        }
+      }
+
+      function renderApiTestResults(results) {
+        const target = $('#apiTestResults');
+        const list = document.createElement('div');
+        for (const result of results) {
+          const item = document.createElement('div');
+          item.className = `test-result ${result.passed ? 'pass' : 'fail'}`;
+          const mark = document.createElement('span');
+          mark.className = 'test-result-mark';
+          mark.textContent = result.passed ? '✓' : '!';
+          const copy = document.createElement('div');
+          const name = document.createElement('div');
+          name.className = 'test-result-name';
+          name.textContent = result.name;
+          const detail = document.createElement('div');
+          detail.className = 'test-result-detail';
+          detail.textContent = result.detail;
+          copy.append(name, detail);
+          item.append(mark, copy);
+          list.append(item);
+        }
+        target.replaceChildren(list);
+      }
+
+      function renderConcurrencyResults({ event, results, counts, expectedConfirmed, expectedWaitlisted }) {
+        const target = $('#concurrencyResults');
+        const passed = counts
+          && counts.confirmed === expectedConfirmed
+          && counts.waitlisted === expectedWaitlisted
+          && counts.cancelled === 0
+          && results.every((result) => result.httpStatus === 201);
+        const container = document.createElement('div');
+        container.className = 'concurrency-results';
+
+        const summary = document.createElement('div');
+        summary.className = 'concurrency-summary';
+        for (const [value, label] of [
+          [`${counts?.confirmed ?? '—'} / ${expectedConfirmed}`, 'Confirmed / expected'],
+          [`${counts?.waitlisted ?? '—'} / ${expectedWaitlisted}`, 'Waitlisted / expected'],
+          [passed ? 'PASS' : 'FAIL', 'Capacity check']
+        ]) {
+          const tile = document.createElement('div');
+          tile.className = 'queue-stat';
+          const strong = document.createElement('strong');
+          strong.textContent = value;
+          const caption = document.createElement('span');
+          caption.textContent = label;
+          tile.append(strong, caption);
+          summary.append(tile);
+        }
+
+        const eventDetails = document.createElement('div');
+        eventDetails.className = 'hint';
+        eventDetails.textContent = `Test event: ${event.title} · ${event.id}`;
+        container.append(summary, eventDetails);
+
+        const tableWrap = document.createElement('div');
+        tableWrap.className = 'table-wrap concurrency-result-table';
+        const table = document.createElement('table');
+        const head = document.createElement('thead');
+        head.innerHTML = '<tr><th>Concurrent guest</th><th>HTTP</th><th>RSVP result</th></tr>';
+        const body = document.createElement('tbody');
+        for (const result of results) {
+          const row = document.createElement('tr');
+          const guestCell = document.createElement('td');
+          const name = document.createElement('span');
+          name.className = 'guest-name';
+          name.textContent = result.name;
+          const email = document.createElement('span');
+          email.className = 'guest-email';
+          email.textContent = result.email;
+          guestCell.append(name, email);
+
+          const httpCell = document.createElement('td');
+          httpCell.textContent = result.httpStatus === null ? 'Network error' : String(result.httpStatus);
+
+          const statusCell = document.createElement('td');
+          const status = document.createElement('span');
+          const rsvpStatus = result.body?.status;
+          status.className = `status ${rsvpStatus === 'CONFIRMED' ? 'confirmed' : rsvpStatus === 'WAITLISTED' ? 'waitlisted' : rsvpStatus === 'CANCELLED' ? 'cancelled' : ''}`;
+          status.textContent = rsvpStatus ?? result.body?.error?.code ?? result.error ?? 'No response';
+          statusCell.append(status);
+          row.append(guestCell, httpCell, statusCell);
+          body.append(row);
+        }
+        table.append(head, body);
+        tableWrap.append(table);
+        container.append(tableWrap);
+        target.replaceChildren(container);
+      }
+
+      async function sendConcurrentRsvp(eventId, runId, index) {
+        const name = `Concurrent Guest ${index + 1}`;
+        const email = `concurrency-${runId}-${index + 1}@example.test`;
+        try {
+          const response = await fetch(`/events/${encodeURIComponent(eventId)}/rsvps`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'idempotency-key': `concurrency-${runId}-${index + 1}`
+            },
+            body: JSON.stringify({ name, email })
+          });
+          const raw = await response.text();
+          let body;
+          try {
+            body = raw ? JSON.parse(raw) : null;
+          } catch {
+            body = { error: { message: raw || 'Invalid JSON response' } };
+          }
+          return { name, email, httpStatus: response.status, body };
+        } catch (error) {
+          return {
+            name,
+            email,
+            httpStatus: null,
+            body: null,
+            error: error instanceof Error ? error.message : 'Network request failed'
+          };
+        }
+      }
+
+      async function runConcurrencyTest() {
+        const capacity = Number($('#concurrencyCapacity').value);
+        const requestCount = Number($('#concurrencyRequests').value);
+        if (!Number.isInteger(capacity) || capacity < 1 || capacity > 99
+          || !Number.isInteger(requestCount) || requestCount < 2 || requestCount > 100
+          || requestCount <= capacity) {
+          showNotice('Use a capacity from 1–99 and a request count from 2–100 that is greater than the capacity.', true);
+          return;
+        }
+
+        const button = $('#runConcurrencyButton');
+        setBusy(button, true, 'Running test…');
+        $('#concurrencyResults').replaceChildren(
+          Object.assign(document.createElement('div'), {
+            className: 'result-empty',
+            textContent: 'Creating a test event, then sending all RSVP requests simultaneously…'
+          })
+        );
+
+        const runId = makeKey();
+        const eventResult = await request('POST', '/events', {
+          body: JSON.stringify({
+            title: `Concurrency Test ${new Date().toISOString()} ${runId.slice(0, 8)}`,
+            date: new Date(Date.now() + 86400000).toISOString(),
+            location: 'Automated API concurrency test',
+            capacity
+          })
+        });
+        if (!eventResult.ok) {
+          $('#concurrencyResults').replaceChildren(
+            Object.assign(document.createElement('div'), {
+              className: 'result-empty',
+              textContent: 'Could not create the test event. See the latest API response for details.'
+            })
+          );
+          setBusy(button, false);
+          return;
+        }
+
+        const eventId = eventResult.body.id;
+        const createdEvent = eventResult.body;
+        const results = await Promise.all(
+          Array.from({ length: requestCount }, (_, index) => sendConcurrentRsvp(eventId, runId, index))
+        );
+
+        let counts = null;
+        try {
+          const response = await fetch(`/events/${encodeURIComponent(eventId)}`);
+          const body = await response.json();
+          if (response.ok) counts = body.counts;
+          else showNotice(body?.error?.message ?? `Could not verify event counts (HTTP ${response.status}).`, true);
+        } catch (error) {
+          showNotice(`Could not verify final event counts: ${error instanceof Error ? error.message : 'Request failed'}`, true);
+        }
+
+        const expectedConfirmed = capacity;
+        const expectedWaitlisted = requestCount - capacity;
+        renderConcurrencyResults({ event: createdEvent, results, counts, expectedConfirmed, expectedWaitlisted });
+        const passed = counts
+          && counts.confirmed === expectedConfirmed
+          && counts.waitlisted === expectedWaitlisted
+          && counts.cancelled === 0
+          && results.every((result) => result.httpStatus === 201);
+        setBusy(button, false);
+        const summaryMessage = passed
+          ? `Concurrency test passed: ${capacity} confirmed, ${expectedWaitlisted} waitlisted from ${requestCount} simultaneous registrations.`
+          : 'Concurrency test failed or could not verify all requests. Review the individual responses and final counts.';
+        await loadQueue();
+        showNotice(summaryMessage, !passed);
+      }
+
+      function renderCancelConcurrencyResults({ event, results, counts, expectedPromotionId, initialRsvpId, idempotent }) {
+        const target = $('#cancelConcurrencyResults');
+        const promoted = results.find((result) => result.body?.promoted)?.body.promoted ?? null;
+        const passed = Boolean(counts
+          && counts.confirmed === 1
+          && counts.waitlisted === 1
+          && counts.cancelled === 1
+          && results.length >= 2
+          && results.every((result) => result.httpStatus === 200)
+          && results.every((result) => result.body?.rsvp?.id === initialRsvpId)
+          && idempotent
+          && promoted?.id === expectedPromotionId);
+
+        const container = document.createElement('div');
+        container.className = 'concurrency-results';
+        const summary = document.createElement('div');
+        summary.className = 'concurrency-summary';
+        for (const [value, label] of [
+          [`${counts?.confirmed ?? '—'} / 1`, 'Confirmed / expected'],
+          [`${counts?.waitlisted ?? '—'} / 1`, 'Waitlisted / expected'],
+          [`${counts?.cancelled ?? '—'} / 1`, 'Cancelled / expected'],
+          [idempotent ? 'YES' : 'NO', 'Responses identical'],
+          [promoted?.id === expectedPromotionId ? 'PASS' : 'FAIL', 'Single FIFO promotion'],
+          [passed ? 'PASS' : 'FAIL', 'Cancellation race']
+        ]) {
+          const tile = document.createElement('div');
+          tile.className = 'queue-stat';
+          const strong = document.createElement('strong');
+          strong.textContent = value;
+          const caption = document.createElement('span');
+          caption.textContent = label;
+          tile.append(strong, caption);
+          summary.append(tile);
+        }
+
+        const details = document.createElement('div');
+        details.className = 'hint';
+        details.textContent = `Test event: ${event.title} · ${event.id} · cancelled RSVP: ${initialRsvpId}`;
+        const promotedDetails = document.createElement('div');
+        promotedDetails.className = 'hint';
+        promotedDetails.textContent = promoted
+          ? `Promoted guest: ${promoted.name} · ${promoted.id}`
+          : 'No guest was promoted in the cancellation response.';
+        container.append(summary, details, promotedDetails);
+
+        const tableWrap = document.createElement('div');
+        tableWrap.className = 'table-wrap concurrency-result-table';
+        const table = document.createElement('table');
+        const head = document.createElement('thead');
+        head.innerHTML = '<tr><th>Request</th><th>HTTP</th><th>Cancelled RSVP</th><th>Promoted RSVP</th></tr>';
+        const body = document.createElement('tbody');
+        for (const result of results) {
+          const row = document.createElement('tr');
+          const attemptCell = document.createElement('td');
+          attemptCell.textContent = `Cancel attempt ${result.index + 1}`;
+          const httpCell = document.createElement('td');
+          httpCell.textContent = result.httpStatus === null ? 'Network error' : String(result.httpStatus);
+          const cancelledCell = document.createElement('td');
+          cancelledCell.textContent = result.body?.rsvp?.status ?? result.body?.error?.code ?? result.error ?? 'No response';
+          const promotedCell = document.createElement('td');
+          promotedCell.textContent = result.body?.promoted?.name ?? '—';
+          row.append(attemptCell, httpCell, cancelledCell, promotedCell);
+          body.append(row);
+        }
+        table.append(head, body);
+        tableWrap.append(table);
+        container.append(tableWrap);
+        target.replaceChildren(container);
+        return passed;
+      }
+
+      async function postJson(path, payload, headers = {}) {
+        const response = await fetch(path, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...headers },
+          body: JSON.stringify(payload)
+        });
+        const raw = await response.text();
+        let body;
+        try {
+          body = raw ? JSON.parse(raw) : null;
+        } catch {
+          body = { error: { message: raw || 'Invalid JSON response' } };
+        }
+        return { response, body };
+      }
+
+      async function runCancelConcurrencyTest() {
+        const requestCount = Number($('#cancelConcurrencyRequests').value);
+        if (!Number.isInteger(requestCount) || requestCount < 2 || requestCount > 50) {
+          showNotice('Choose between 2 and 50 simultaneous cancellation requests.', true);
+          return;
+        }
+        if (!confirm('This creates a test event, three RSVPs, and webhook jobs that remain in the database and queue. Continue?')) return;
+
+        const button = $('#runCancelConcurrencyButton');
+        setBusy(button, true, 'Running test…');
+        const output = $('#cancelConcurrencyResults');
+        output.replaceChildren(Object.assign(document.createElement('div'), {
+          className: 'result-empty',
+          textContent: 'Creating a test event and RSVPs, then cancelling the same RSVP simultaneously…'
+        }));
+        const runId = makeKey();
+        const eventResult = await request('POST', '/events', {
+          body: JSON.stringify({
+            title: `Cancellation Concurrency Test ${new Date().toISOString()} ${runId.slice(0, 8)}`,
+            date: new Date(Date.now() + 86400000).toISOString(),
+            location: 'Automated API cancellation concurrency test',
+            capacity: 1
+          })
+        });
+        if (!eventResult.ok) {
+          output.replaceChildren(Object.assign(document.createElement('div'), {
+            className: 'result-empty',
+            textContent: 'Could not create the test event. See the latest API response for details.'
+          }));
+          setBusy(button, false);
+          return;
+        }
+
+        const testEvent = eventResult.body;
+        const seeded = [];
+        for (let index = 0; index < 3; index += 1) {
+          const guest = {
+            name: index === 0 ? 'Cancellation Test Confirmed Guest' : `Cancellation Test Waitlisted Guest ${index}`,
+            email: `cancel-concurrency-${runId}-${index + 1}@example.test`
+          };
+          try {
+            const { response, body } = await postJson(
+              `/events/${encodeURIComponent(testEvent.id)}/rsvps`,
+              guest,
+              { 'idempotency-key': `cancel-concurrency-seed-${runId}-${index + 1}` }
+            );
+            if (response.status !== 201) throw new Error(body?.error?.message ?? `HTTP ${response.status}`);
+            seeded.push(body);
+          } catch (error) {
+            output.replaceChildren(Object.assign(document.createElement('div'), {
+              className: 'result-empty',
+              textContent: `Failed to create the setup RSVPs. Test event ${testEvent.id} and any created guests remain in the database. ${error instanceof Error ? error.message : 'Request failed'}`
+            }));
+            setBusy(button, false);
+            return;
+          }
+        }
+
+        if (seeded[0].status !== 'CONFIRMED'
+          || seeded[1].status !== 'WAITLISTED'
+          || seeded[2].status !== 'WAITLISTED') {
+          output.replaceChildren(Object.assign(document.createElement('div'), {
+            className: 'result-empty',
+            textContent: `Unexpected setup RSVP statuses: ${seeded.map((rsvp) => rsvp.status).join(', ')}. Test records remain in the database.`
+          }));
+          setBusy(button, false);
+          return;
+        }
+
+        let expectedPromotionId = null;
+        try {
+          const response = await fetch(`/events/${encodeURIComponent(testEvent.id)}/rsvps?limit=10`);
+          const body = await response.json();
+          if (!response.ok) throw new Error(body?.error?.message ?? `HTTP ${response.status}`);
+          expectedPromotionId = body.data.find((rsvp) => rsvp.status === 'WAITLISTED')?.id ?? null;
+        } catch (error) {
+          output.replaceChildren(Object.assign(document.createElement('div'), {
+            className: 'result-empty',
+            textContent: `Could not verify the waitlist order before cancellation: ${error instanceof Error ? error.message : 'Request failed'}. Test records remain in the database.`
+          }));
+          setBusy(button, false);
+          return;
+        }
+
+        const cancellationKey = `cancel-concurrency-race-${runId}`;
+        const results = await Promise.all(Array.from({ length: requestCount }, async (_, index) => {
+          try {
+            const { response, body } = await postJson(
+              `/rsvps/${encodeURIComponent(seeded[0].id)}/cancel`,
+              {},
+              { 'idempotency-key': cancellationKey }
+            );
+            return { index, httpStatus: response.status, body };
+          } catch (error) {
+            return {
+              index,
+              httpStatus: null,
+              body: null,
+              error: error instanceof Error ? error.message : 'Network request failed'
+            };
+          }
+        }));
+
+        let counts = null;
+        let idempotent = results.every((result) => result.httpStatus === 200)
+          && results.every((result) => JSON.stringify(result.body) === JSON.stringify(results[0]?.body));
+        try {
+          const response = await fetch(`/events/${encodeURIComponent(testEvent.id)}`);
+          const body = await response.json();
+          if (!response.ok) throw new Error(body?.error?.message ?? `HTTP ${response.status}`);
+          counts = body.counts;
+        } catch (error) {
+          showNotice(`Could not verify final event counts: ${error instanceof Error ? error.message : 'Request failed'}`, true);
+        }
+
+        const passed = renderCancelConcurrencyResults({
+          event: testEvent,
+          results,
+          counts,
+          expectedPromotionId,
+          initialRsvpId: seeded[0].id,
+          idempotent
+        });
+        const summaryMessage = passed
+          ? `Cancellation race passed: ${requestCount} requests returned the same result and exactly one waitlisted guest was promoted.`
+          : 'Cancellation race failed or could not verify all results. Review the individual responses and final counts.';
+        setBusy(button, false);
+        await loadQueue();
+        showNotice(summaryMessage, !passed);
+      }
+
+      async function runApiTests() {
+        const button = $('#runApiTestsButton');
+        setBusy(button, true, 'Running…');
+        const tests = [
+          {
+            name: 'API health',
+            path: '/health',
+            validate: (body) => body?.status === 'ok',
+            success: 'API returned status "ok".'
+          },
+          {
+            name: 'All events endpoint',
+            path: '/events',
+            validate: (body) => Array.isArray(body),
+            success: 'Endpoint returned a valid event list.'
+          },
+          {
+            name: 'Worker queue endpoint',
+            path: '/worker/queue',
+            validate: (body) => typeof body?.queueName === 'string'
+              && typeof body?.workerCount === 'number'
+              && Array.isArray(body?.jobs),
+            success: 'Queue status and recent jobs are available.'
+          }
+        ];
+        const results = await Promise.all(tests.map(async (test) => {
+          try {
+            const response = await fetch(test.path);
+            const body = await response.json();
+            if (!response.ok) {
+              return { name: test.name, passed: false, detail: body?.error?.message ?? `HTTP ${response.status}` };
+            }
+            const passed = test.validate(body);
+            return {
+              name: test.name,
+              passed,
+              detail: passed ? test.success : 'Response did not match the expected shape.'
+            };
+          } catch (error) {
+            return {
+              name: test.name,
+              passed: false,
+              detail: error instanceof Error ? error.message : 'Request failed'
+            };
+          }
+        }));
+        renderApiTestResults(results);
+        setBusy(button, false);
+        const passed = results.filter((result) => result.passed).length;
+        showNotice(`${passed} of ${results.length} API smoke tests passed.`, passed !== results.length);
+      }
+
+      async function loadEvents() {
+        const result = await request('GET', '/events');
+        if (result.ok) renderEvents(result.body);
+      }
+
+      function renderRsvps(rsvps, pagination) {
+        const target = $('#rsvpTable');
+        totalPages = pagination.totalPages;
+        const tableWrap = document.createElement('div');
+        tableWrap.className = 'table-wrap';
+        const table = document.createElement('table');
+        const head = document.createElement('thead');
+        head.innerHTML = '<tr><th>Guest</th><th>Status</th><th>RSVP ID / Action</th></tr>';
+        const body = document.createElement('tbody');
+
+        if (rsvps.length === 0) {
+          const row = document.createElement('tr');
+          const cell = document.createElement('td');
+          cell.colSpan = 3;
+          cell.textContent = 'No RSVPs found for this event and filter.';
+          cell.style.color = 'var(--muted)';
+          row.append(cell);
+          body.append(row);
+        }
+
+        for (const rsvp of rsvps) {
+          const row = document.createElement('tr');
+          const guest = document.createElement('td');
+          const name = document.createElement('span');
+          name.className = 'guest-name';
+          name.textContent = rsvp.name;
+          const email = document.createElement('span');
+          email.className = 'guest-email';
+          email.textContent = rsvp.email;
+          const registeredAt = document.createElement('time');
+          registeredAt.className = 'guest-email';
+          registeredAt.dateTime = rsvp.createdAt;
+          registeredAt.textContent = `Registered ${new Date(rsvp.createdAt).toLocaleString()}`;
+          guest.append(name, email, registeredAt);
+
+          const statusCell = document.createElement('td');
+          const status = document.createElement('span');
+          status.className = `status ${rsvp.status.toLowerCase()}`;
+          status.textContent = rsvp.status;
+          statusCell.append(status);
+
+          const actionCell = document.createElement('td');
+          const id = document.createElement('span');
+          id.className = 'guest-email';
+          id.textContent = rsvp.id;
+          actionCell.append(id);
+          if (rsvp.status !== 'CANCELLED') {
+            const cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'button danger';
+            cancel.textContent = 'Cancel RSVP';
+            cancel.addEventListener('click', () => cancelRsvp(rsvp.id, cancel));
+            actionCell.append(cancel);
+          }
+          row.append(guest, statusCell, actionCell);
+          body.append(row);
+        }
+
+        table.append(head, body);
+        tableWrap.append(table);
+        const paginationBar = document.createElement('div');
+        paginationBar.className = 'pagination';
+        const pageInfo = document.createElement('span');
+        pageInfo.textContent = `Page ${pagination.page} of ${pagination.totalPages || 0} · ${pagination.total} total`;
+        const pageActions = document.createElement('div');
+        pageActions.className = 'page-actions';
+        const previous = document.createElement('button');
+        previous.type = 'button';
+        previous.className = 'button secondary';
+        previous.textContent = 'Previous';
+        previous.disabled = pagination.page <= 1;
+        previous.addEventListener('click', () => loadRsvps(pagination.page - 1));
+        const next = document.createElement('button');
+        next.type = 'button';
+        next.className = 'button secondary';
+        next.textContent = 'Next';
+        next.disabled = pagination.page >= pagination.totalPages;
+        next.addEventListener('click', () => loadRsvps(pagination.page + 1));
+        pageActions.append(previous, next);
+        paginationBar.append(pageInfo, pageActions);
+        target.replaceChildren(tableWrap, paginationBar);
+      }
+
+      async function loadRsvps(page = 1) {
+        const base = eventPath();
+        if (!base) return;
+        currentPage = page;
+        const params = new URLSearchParams({
+          page: String(page),
+          limit: $('#pageLimit').value
+        });
+        if ($('#statusFilter').value) params.set('status', $('#statusFilter').value);
+        const result = await request('GET', `${base}/rsvps?${params}`);
+        if (result.ok) renderRsvps(result.body.data, result.body.pagination);
+      }
+
+      async function cancelRsvp(rsvpId, button) {
+        if (!confirm(`Cancel RSVP ${rsvpId}?`)) return;
+        setBusy(button, true, 'Cancelling…');
+        const result = await request('POST', `/rsvps/${encodeURIComponent(rsvpId)}/cancel`, {
+          headers: { 'idempotency-key': makeKey() }
+        });
+        setBusy(button, false);
+        if (result.ok) {
+          await loadRsvps(currentPage);
+          showNotice(result.body.promoted
+            ? `RSVP cancelled. ${result.body.promoted.name} was promoted from the waitlist.`
+            : 'RSVP cancelled successfully.');
+        }
+      }
+
+      $('#healthButton').addEventListener('click', async () => {
+        const button = $('#healthButton');
+        button.disabled = true;
+        $('#healthLabel').textContent = 'Checking…';
+        const result = await request('GET', '/health');
+        button.disabled = false;
+        button.dataset.state = result.ok ? 'online' : 'offline';
+        $('#healthLabel').textContent = result.ok ? 'API is online' : 'API unavailable';
+      });
+
+      $('#eventForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const button = event.currentTarget.querySelector('button[type="submit"]');
+        const values = new FormData(event.currentTarget);
+        setBusy(button, true, 'Creating…');
+        const result = await request('POST', '/events', {
+          body: JSON.stringify({
+            title: values.get('title'),
+            date: new Date(values.get('date')).toISOString(),
+            location: values.get('location'),
+            capacity: Number(values.get('capacity'))
+          })
+        });
+        setBusy(button, false);
+        if (result.ok) {
+          $('#eventId').value = result.body.id;
+          await request('GET', `/events/${encodeURIComponent(result.body.id)}`);
+          await loadEvents();
+          showNotice(`Event created. Its ID has been added to the Event ID field.`);
+        }
+      });
+
+      $('#getEventButton').addEventListener('click', async () => {
+        const path = eventPath();
+        if (path) await request('GET', path);
+      });
+
+      $('#rsvpForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const base = eventPath();
+        if (!base) return;
+        const values = new FormData(event.currentTarget);
+        const key = $('#createKey').value.trim();
+        if (!key) {
+          showNotice('Enter an idempotency key before registering.', true);
+          return;
+        }
+        const button = event.currentTarget.querySelector('button[type="submit"]');
+        setBusy(button, true, 'Registering…');
+        const result = await request('POST', `${base}/rsvps`, {
+          headers: { 'idempotency-key': key },
+          body: JSON.stringify({ name: values.get('name'), email: values.get('email') })
+        });
+        setBusy(button, false);
+        if (result.ok) {
+          $('#createKey').value = makeKey();
+          await loadRsvps(1);
+          showNotice(`RSVP created with status ${result.body.status}.`);
+        }
+      });
+
+      $('#newCreateKey').addEventListener('click', () => {
+        $('#createKey').value = makeKey();
+        $('#createKey').focus();
+      });
+      $('#refreshQueueButton').addEventListener('click', loadQueue);
+      $('#triggerWebhookTestButton').addEventListener('click', triggerWebhookTest);
+      $('#runApiTestsButton').addEventListener('click', runApiTests);
+      $('#concurrencyForm').addEventListener('submit', (event) => {
+        event.preventDefault();
+        void runConcurrencyTest();
+      });
+      $('#cancelConcurrencyForm').addEventListener('submit', (event) => {
+        event.preventDefault();
+        void runCancelConcurrencyTest();
+      });
+      $('#listEventsButton').addEventListener('click', loadEvents);
+      $('#listRsvpsButton').addEventListener('click', () => loadRsvps(1));
+      $('#statusFilter').addEventListener('change', () => loadRsvps(1));
+      $('#pageLimit').addEventListener('change', () => loadRsvps(1));
+      $('#loadLogsButton').addEventListener('click', () => loadServerLogs(1));
+      $('#logLevelFilter').addEventListener('change', () => loadServerLogs(1));
+      $('#logSourceFilter').addEventListener('change', () => loadServerLogs(1));
+      $('#createKey').value = makeKey();
+      $('#eventDate').value = new Date(Date.now() + 86400000 - new Date().getTimezoneOffset() * 60000)
+        .toISOString().slice(0, 16);
+    </script>
+  </body>
+</html>
