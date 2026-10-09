@@ -4,6 +4,7 @@ A small RSVP service built with Node.js ES modules, Fastify, PostgreSQL, Prisma,
 
 ## Architecture
 
+- See [ARCHITECTURE.md](./ARCHITECTURE.md) for the component and data-flow diagrams, persistence model, consistency guarantees, webhook delivery semantics, and operational considerations.
 - PostgreSQL is the source of truth for events, guests, idempotency records, and webhook outbox entries.
 - Fastify serves event, RSVP, cancellation, and health endpoints.
 - Each RSVP capacity change locks its event row with `SELECT ... FOR UPDATE`. This serializes changes to one event without blocking unrelated events.
@@ -56,17 +57,31 @@ The API listens on `http://localhost:3000` by default. Open `http://localhost:30
 
 Server logs are stored in PostgreSQL and retained until manually removed. The test console's **Server logs** section supports level/source filters and pagination. The API logs request method, path, status, and response time, but not request bodies or headers. Log persistence depends on PostgreSQL availability; failures to write a log are reported to the process console.
 
-## API
+For safe local API load testing with Autocannon, see [AUTOCANNON_LOAD_TESTING.md](./AUTOCANNON_LOAD_TESTING.md). Mutating load tests write persistent records and RSVP tests can trigger real webhooks, so use a dedicated test database and controlled receiver.
 
-Errors use the format `{ "error": { "code": "...", "message": "..." } }`.
+## API reference
 
-### Health
+Local base URL: `http://localhost:3000`. Send JSON requests with `Content-Type: application/json`. Application errors use this shape:
 
-```http
-GET /health
+```json
+{ "error": { "code": "ERROR_CODE", "message": "Description" } }
 ```
 
-### Create an event
+Invalid request data generally returns `400 VALIDATION_ERROR`. UUID path parameters must be valid UUIDs.
+
+### `GET /health`
+
+Returns `200 OK`:
+
+```json
+{ "status": "ok" }
+```
+
+This checks that the API process responds; it does not check database, Redis, or webhook health.
+
+### `POST /events`
+
+Create an event. All fields are required; extra fields are rejected.
 
 ```http
 POST /events
@@ -82,83 +97,163 @@ Content-Type: application/json
 }
 ```
 
-Returns `201 Created`.
+Validation: `title` is non-blank and at most 200 characters; `date` is an ISO date-time; `location` is non-blank and at most 300 characters; `capacity` is a positive integer.
 
-### Get event and RSVP counts
+Returns `201 Created` with the event record (`id`, `title`, `date`, `location`, `capacity`, `createdAt`).
 
-```http
-GET /events/{eventId}
-```
+### `GET /events`
 
-The response includes `counts.confirmed`, `counts.waitlisted`, and `counts.cancelled`.
-
-### List all events
-
-```http
-GET /events
-```
-
-Returns an array of all events ordered by date, each with confirmed, waitlisted, and cancelled RSVP counts.
-
-### Inspect the webhook worker queue
-
-```http
-GET /worker/queue
-```
-
-Returns counts for waiting, active, delayed, failed, and completed jobs, the number of connected workers, and up to 25 recent retained jobs with status, attempt counts, timestamps, and failure reason. Job payloads are omitted. Open the console and select **Refresh queue** to view this information. The worker must be running to process queued jobs; jobs can still be inspected while it is stopped.
-
-In development mode only, click **Trigger test webhook** in the console or send:
-
-```http
-POST /worker/queue/test-job
-```
-
-This enqueues a `WEBHOOK_TEST` job. If the worker is running, it sends the test payload to the configured `WEBHOOK_URL`. Confirm the destination is one you control before triggering it. The endpoint is disabled outside development mode.
-
-### Read server logs
-
-```http
-GET /server-logs?page=1&limit=25&level=ERROR&source=WORKER
-```
-
-Filters are optional. `level` accepts `INFO`, `WARN`, or `ERROR`; `source` accepts `API`, `WORKER`, or `OUTBOX`. `limit` defaults to 25 and is capped at 100. The response contains `data` and pagination metadata.
-
-The console's **Concurrent RSVP cancellation test** creates a capacity-one event, registers one confirmed guest and two waitlisted guests, then submits multiple cancellation requests for the same RSVP using the same idempotency key. It verifies that all callers receive the same response, exactly one waitlisted guest is promoted, and the final event counts are correct. Generated events, RSVPs, and webhook outbox jobs are retained; use a local test database and consider the configured webhook receiver before running it.
-
-### Register an RSVP
-
-```http
-POST /events/{eventId}/rsvps
-Idempotency-Key: a-unique-key-for-this-registration
-Content-Type: application/json
-```
+List all events, ordered by date then ID. Returns `200 OK` with an array of event records. Each record includes RSVP counts:
 
 ```json
 {
-  "name": "Swayam Kumar",
-  "email": "swayam@example.com"
+  "id": "event-uuid",
+  "title": "Tech Meetup",
+  "date": "2026-10-20T18:00:00.000Z",
+  "location": "Bengaluru",
+  "capacity": 100,
+  "createdAt": "2026-10-10T00:00:00.000Z",
+  "counts": { "confirmed": 12, "waitlisted": 2, "cancelled": 1 }
 }
 ```
 
-Returns the RSVP with status `CONFIRMED` or `WAITLISTED`. Reuse the same key when retrying a logical request after a timeout. A repeated key with the same normalized request replays the original response; reusing that key with a different request returns `409 Conflict`.
+Returns `[]` when there are no events.
 
-### List RSVPs
+### `GET /events/{eventId}`
+
+Get an event and its RSVP counts (`confirmed`, `waitlisted`, `cancelled`). Returns `200 OK` with the event record as above. Returns `404 EVENT_NOT_FOUND` if it does not exist.
+
+### `GET /events/{eventId}/rsvps`
+
+List RSVPs for an event:
 
 ```http
 GET /events/{eventId}/rsvps?page=1&limit=20&status=CONFIRMED
 ```
 
-`page` defaults to 1, `limit` defaults to 20 and cannot exceed 100. `status` is optional and may be `CONFIRMED`, `WAITLISTED`, or `CANCELLED`. Results are ordered by creation time and then ID. The response contains `data` and pagination metadata, including the total matching count.
+| Query parameter | Default | Description |
+|---|---:|---|
+| `page` | `1` | Positive integer page number |
+| `limit` | `20` | Page size, integer from 1 to 100 |
+| `status` | — | Optional `CONFIRMED`, `WAITLISTED`, or `CANCELLED` filter |
 
-### Cancel an RSVP
+Items are ordered by `createdAt`, then ID. Returns `200 OK`:
+
+```json
+{
+  "data": [
+    {
+      "id": "rsvp-uuid",
+      "eventId": "event-uuid",
+      "name": "Swayam Kumar",
+      "email": "swayam@example.com",
+      "status": "CONFIRMED",
+      "createdAt": "2026-10-10T00:00:00.000Z",
+      "cancelledAt": null
+    }
+  ],
+  "pagination": { "page": 1, "limit": 20, "total": 1, "totalPages": 1 }
+}
+```
+
+Returns `404 EVENT_NOT_FOUND` if the event does not exist.
+
+### `POST /events/{eventId}/rsvps`
+
+Register a guest. An `Idempotency-Key` header is required (1–200 characters).
+
+```http
+POST /events/{eventId}/rsvps
+Idempotency-Key: unique-registration-request-1
+Content-Type: application/json
+```
+
+```json
+{ "name": "Swayam Kumar", "email": "swayam@example.com" }
+```
+
+Both properties are required; additional properties are rejected. Name is non-blank and at most 200 characters. Email must be valid and at most 320 characters. Name and email are trimmed, and email is lowercased.
+
+Returns `201 Created` with the RSVP record. The status is `CONFIRMED` if event capacity is available, otherwise `WAITLISTED`.
+
+| Status | Error code | Meaning |
+|---:|---|---|
+| `400` | `VALIDATION_ERROR` | Invalid body/path/header |
+| `400` | `IDEMPOTENCY_KEY_REQUIRED` | Missing or invalid idempotency key |
+| `404` | `EVENT_NOT_FOUND` | Event does not exist |
+| `409` | `RSVP_ALREADY_EXISTS` | Email already has an active RSVP for the event |
+| `409` | `IDEMPOTENCY_KEY_REUSED` | Key was used with a different request |
+
+Retry a logical request with the same key and same normalized input to replay its original response.
+
+### `POST /rsvps/{rsvpId}/cancel`
+
+Cancel an RSVP. Requires an `Idempotency-Key` header from 1 to 200 characters.
 
 ```http
 POST /rsvps/{rsvpId}/cancel
-Idempotency-Key: a-unique-key-for-this-cancellation
+Idempotency-Key: unique-cancellation-request-1
 ```
 
-Cancellation returns the cancelled RSVP and the promoted RSVP, or `null` if no guest was promoted. Cancelling a confirmed RSVP promotes at most one oldest waitlisted guest. Cancelling a waitlisted RSVP does not promote anyone.
+Returns `200 OK` with:
+
+```json
+{
+  "rsvp": {
+    "id": "rsvp-uuid",
+    "eventId": "event-uuid",
+    "name": "Swayam Kumar",
+    "email": "swayam@example.com",
+    "status": "CANCELLED",
+    "createdAt": "2026-10-10T00:00:00.000Z",
+    "cancelledAt": "2026-10-10T01:00:00.000Z"
+  },
+  "promoted": null
+}
+```
+
+If the cancelled RSVP was confirmed, `promoted` contains the oldest waitlisted RSVP changed to `CONFIRMED`, or `null` if no guest was waiting. Cancelling a waitlisted RSVP does not promote anyone. Errors: `400 VALIDATION_ERROR`, `400 IDEMPOTENCY_KEY_REQUIRED`, `404 RSVP_NOT_FOUND`, or `404 EVENT_NOT_FOUND`.
+
+### `GET /worker/queue`
+
+Inspect BullMQ queue state. Returns `200 OK` with queue name, connected worker count, counts for `active`, `waiting`, `delayed`, `failed`, and `completed`, and up to 25 recent jobs. Job payloads are not included. A worker must be connected to process jobs; queue status is still available while the worker is stopped.
+
+Each job includes `id`, `name`, `state`, `attemptsMade`, configured `attempts`, timestamps (`timestamp`, `processedOn`, `finishedOn`), and `failedReason`.
+
+Returns `503 QUEUE_UNAVAILABLE` if queue monitoring is not configured.
+
+### `POST /worker/queue/test-job` (development only)
+
+Enqueue a test webhook job. This endpoint is enabled only in development and sends a real webhook to `WEBHOOK_URL` if the worker is running; only configure a receiver you control.
+
+Returns `202 Accepted`:
+
+```json
+{ "jobId": "generated-job-id", "name": "WEBHOOK_TEST", "status": "queued" }
+```
+
+Returns `404 TEST_TRIGGER_DISABLED` outside development or `503 QUEUE_UNAVAILABLE` if the queue is unavailable.
+
+### `GET /server-logs`
+
+Read persisted logs, newest first:
+
+```http
+GET /server-logs?page=1&limit=25&level=ERROR&source=WORKER
+```
+
+| Query parameter | Default | Accepted values |
+|---|---:|---|
+| `page` | `1` | Positive integer |
+| `limit` | `25` | Integer from 1 to 100 |
+| `level` | — | `INFO`, `WARN`, or `ERROR` |
+| `source` | — | `API`, `WORKER`, or `OUTBOX` |
+
+Returns `200 OK` with `data` entries (`id`, `level`, `source`, `message`, optional `context`, `createdAt`) and `pagination` (`page`, `limit`, `total`, `totalPages`). Invalid filters or pagination return `400 VALIDATION_ERROR`.
+
+### `GET /` and `GET /test`
+
+Serve the browser-based development console for exercising the API, viewing events/RSVPs, running concurrency tests, inspecting the queue, and browsing logs. Concurrency tests create persistent records; RSVP operations can enqueue real webhooks if a worker is running. Use a dedicated test database and a webhook receiver you control.
 
 ## Idempotency and concurrency
 
@@ -173,6 +268,7 @@ npm test
 ```
 
 The PostgreSQL integration tests are skipped unless `TEST_DATABASE_URL` points to a dedicated test database. Those tests truncate their tables before each case, so never point this variable at a database containing data you need.
+The integration suite includes automated coverage for RSVP confirmation and waitlisting at capacity, concurrent requests for the last available slot, FIFO waitlist promotion after cancellation, cancellation of waitlisted guests, and idempotency/duplicate registration behavior.
 
 PowerShell example:
 
@@ -191,7 +287,8 @@ Concurrency behavior is exercised against PostgreSQL by issuing overlapping API 
 - The outbox dispatcher polls in batches and is designed for a single local worker process. Stable queue job IDs reduce duplicates during publication retries, but at-least-once delivery still permits duplicate webhooks in crash windows.
 - Idempotency records are retained indefinitely in this take-home implementation. A production deployment should define an explicit retention policy that is longer than the maximum client retry window.
 - The health endpoint reports API process availability; it is not a database or Redis readiness probe.
+- For scale, measure event-row lock contention, coordinate outbox row claims before running multiple dispatchers, and move high-volume logs to a dedicated aggregation service with retention controls. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the rationale and fuller scaling path.
 
 ## AI use
 
-AI assistance was used to scaffold the implementation and documentation. The project should be validated locally with the setup and test commands above before relying on it in production.
+AI tools helped draft implementation code, automated tests, and documentation. Suggestions were reviewed against the implementation; the final design notes distinguish outbox publication from webhook delivery, describe delivery as at-least-once (not exactly-once), and clarify that Prisma client generation is separate from applying migrations. The PostgreSQL concurrency tests must still be run against a dedicated test database; AI-generated code or tests alone are not evidence of production readiness.

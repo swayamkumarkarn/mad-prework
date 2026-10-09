@@ -21,6 +21,8 @@ describe('API testing console', () => {
       expect(response.body).toContain('cancel-concurrency-race-');
       expect(response.body).toContain('Server logs');
       expect(response.body).toContain('Load logs');
+      expect(response.body).toContain('No worker logs yet. Start or restart the worker with npm run worker');
+      expect(response.body).toContain('No outbox activity logs yet.');
       expect(response.body).toContain('Promise.all');
       expect(response.body).toContain('Date &amp; location');
       expect(response.body).toContain('<th>Capacity</th>');

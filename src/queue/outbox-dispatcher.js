@@ -28,6 +28,10 @@ export class OutboxDispatcher {
             where: { id: event.id },
             data: { publishedAt: new Date(), attempts: { increment: 1 }, lastError: null }
           });
+          this.logger.info(
+            { outboxId: event.id, type: event.type },
+            'Outbox event published'
+          );
         } catch (error) {
           await this.prisma.outboxEvent.update({
             where: { id: event.id },

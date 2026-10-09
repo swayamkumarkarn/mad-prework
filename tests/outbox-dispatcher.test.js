@@ -11,7 +11,8 @@ describe('OutboxDispatcher', () => {
       }
     };
     const queue = { add: vi.fn().mockResolvedValue({ id: event.id }) };
-    const dispatcher = new OutboxDispatcher({ prisma, queue, logger: console });
+    const logger = { info: vi.fn(), error: vi.fn() };
+    const dispatcher = new OutboxDispatcher({ prisma, queue, logger });
 
     await dispatcher.dispatchOnce();
 
@@ -20,6 +21,10 @@ describe('OutboxDispatcher', () => {
       where: { id: event.id },
       data: { publishedAt: expect.any(Date), attempts: { increment: 1 }, lastError: null }
     });
+    expect(logger.info).toHaveBeenCalledWith(
+      { outboxId: event.id, type: event.type },
+      'Outbox event published'
+    );
   });
 
   it('keeps failed publications unpublished and records the attempt error', async () => {

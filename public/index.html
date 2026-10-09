@@ -636,7 +636,12 @@
           const row = document.createElement('tr');
           const cell = document.createElement('td');
           cell.colSpan = 4;
-          cell.textContent = 'No logs match these filters.';
+          const source = $('#logSourceFilter').value;
+          cell.textContent = source === 'WORKER'
+            ? 'No worker logs yet. Start or restart the worker with npm run worker, then refresh logs.'
+            : source === 'OUTBOX'
+              ? 'No outbox activity logs yet. Restart the worker and trigger an RSVP or webhook job to record a publish or dispatch failure.'
+              : 'No logs match these filters.';
           cell.style.color = 'var(--muted)';
           row.append(cell);
           body.append(row);
