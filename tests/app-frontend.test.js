@@ -17,8 +17,15 @@ describe('API testing console', () => {
       expect(response.body).toContain('RSVP concurrency test');
       expect(response.body).toContain('Run concurrency test');
       expect(response.body).toContain('Concurrent RSVP cancellation test');
-      expect(response.body).toContain('Run cancellation race test');
-      expect(response.body).toContain('cancel-concurrency-race-');
+      expect(response.body).toContain('Run cancellation concurrency test');
+      expect(response.body).toContain('Distinct RSVPs to cancel concurrently');
+      expect(response.body).toContain('cancel-concurrency-${runId}-${index + 1}');
+      expect(response.body).toContain('cancelConcurrencyEventId');
+      expect(response.body).toContain('Any confirmed RSVP');
+      expect(response.body).toContain('Any waitlisted RSVP');
+      expect(response.body).toContain('This permanently cancels ${requestCount} distinct');
+      expect(response.body).toContain('selectedRsvps.map');
+      expect(response.body).not.toContain('Creating a test event, three RSVPs');
       expect(response.body).toContain('Server logs');
       expect(response.body).toContain('Load logs');
       expect(response.body).toContain('No worker logs yet. Start or restart the worker with npm run worker');

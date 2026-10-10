@@ -73,7 +73,7 @@ The RSVP response does not wait for the webhook receiver. A successfully committ
 
 The outbox pattern prevents a committed RSVP change from being lost merely because Redis or the webhook receiver is temporarily unavailable at that moment. The dispatcher polls unpublished records every second in batches of up to 50. It adds a BullMQ job using the outbox row's ID and then records `publishedAt`.
 
-BullMQ jobs are configured for three attempts with exponential backoff starting at one second. Webhook calls have a 10-second timeout. Failed delivery attempts are visible in queue job state and worker logs.
+BullMQ retries failed webhook deliveries `WEBHOOK_MAX_RETRIES` times after the initial attempt (default `2`, three total attempts), with exponential backoff starting at one second. Set it to `0` to disable retries. The worker rate-limits processing to one webhook job per `WEBHOOK_RATE_LIMIT_MS` interval (default one second) to avoid overwhelming rate-limited receivers; queued jobs wait in Redis and RSVP API responses do not wait. Webhook calls have a 10-second timeout. Failed delivery attempts are visible in queue job state and worker logs.
 
 Delivery is **at least once**, not exactly once. If the dispatcher adds a job but crashes before recording `publishedAt`, it may encounter the same outbox row again. The stable job ID helps avoid duplicate queue jobs while a job with that ID is retained, but it cannot guarantee that the external receiver will observe exactly one HTTP request in all crash/retry scenarios. Webhook consumers should therefore handle duplicate events idempotently.
 
@@ -130,7 +130,7 @@ npm run dev       # API with Node watch mode
 npm run worker    # Outbox dispatcher and webhook consumer
 ```
 
-Both use `DATABASE_URL`; the API and worker also use `REDIS_URL` (default `redis://localhost:6379`). The worker requires a valid `WEBHOOK_URL`. The API listens on `HOST` (default `0.0.0.0`) and `PORT` (default `3000`).
+Both use `DATABASE_URL`; the API and worker also use `REDIS_URL` (default `redis://localhost:6379`). The worker requires a valid `WEBHOOK_URL` and accepts `WEBHOOK_MAX_RETRIES` (non-negative retry count after the initial delivery; default `2`) and `WEBHOOK_RATE_LIMIT_MS` (positive integer milliseconds between webhook jobs; default `1000`). The API listens on `HOST` (default `0.0.0.0`) and `PORT` (default `3000`).
 
 After changing the Prisma schema or applying migrations, regenerate the client (`npm run db:generate`) and restart processes using it. Apply schema migrations with `npm run db:migrate`. Refer to [README.md](./README.md) for prerequisites and the complete setup steps.
 

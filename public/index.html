@@ -219,26 +219,37 @@
               <div class="card-title-row">
                 <div>
                   <h2>Concurrent RSVP cancellation test</h2>
-                  <p class="hint">Cancel the same confirmed RSVP simultaneously and check idempotency and waitlist promotion.</p>
+                  <p class="hint">Choose an event and cancel multiple confirmed or waitlisted RSVPs simultaneously.</p>
                 </div>
                 <span class="step">↻</span>
               </div>
             </div>
             <div class="card-body">
               <form id="cancelConcurrencyForm">
-                <div class="field" style="max-width: 230px">
-                  <label for="cancelConcurrencyRequests">Simultaneous cancellation requests</label>
-                  <input id="cancelConcurrencyRequests" type="number" min="2" max="50" value="10" required>
+              <div class="field">
+                <label for="cancelConcurrencyEventId">Event ID</label>
+                <input id="cancelConcurrencyEventId" type="text" placeholder="Paste an existing event UUID" required>
+              </div>
+              <div class="field">
+                <label for="cancelConcurrencyStatus">RSVP status to cancel</label>
+                <select id="cancelConcurrencyStatus" required>
+                  <option value="CONFIRMED">Any confirmed RSVP</option>
+                  <option value="WAITLISTED">Any waitlisted RSVP</option>
+                </select>
+              </div>
+              <div class="field" style="max-width: 230px">
+                <label for="cancelConcurrencyRequests">Distinct RSVPs to cancel concurrently</label>
+                <input id="cancelConcurrencyRequests" type="number" min="2" max="50" value="10" required>
                 </div>
                 <div class="actions">
-                  <button class="button primary" id="runCancelConcurrencyButton" type="submit">Run cancellation race test</button>
+                  <button class="button primary" id="runCancelConcurrencyButton" type="submit">Run cancellation concurrency test</button>
                 </div>
               </form>
               <div class="section-divider"></div>
-              <p class="hint">Creates a test event, three RSVPs, and webhook outbox jobs that remain in your database and queue. Use a local test database. The worker may deliver notifications to your configured receiver.</p>
+              <p class="hint">This permanently cancels the selected number of distinct RSVPs and creates cancellation webhook outbox jobs. Use a test event; the worker may send notifications to your configured receiver.</p>
               <div class="section-divider"></div>
               <div id="cancelConcurrencyResults">
-                <div class="result-empty">Run the test to see concurrent cancellation responses and verify that only one guest is promoted.</div>
+                <div class="result-empty">Enter an event ID, select an RSVP status, and choose how many distinct RSVPs to cancel concurrently.</div>
               </div>
             </div>
           </section>
@@ -1005,29 +1016,42 @@
         showNotice(summaryMessage, !passed);
       }
 
-      function renderCancelConcurrencyResults({ event, results, counts, expectedPromotionId, initialRsvpId, idempotent }) {
+      function renderCancelConcurrencyResults({
+        event,
+        selectedRsvps,
+        results,
+        counts,
+        expectedCounts,
+        expectedPromotionIds
+      }) {
         const target = $('#cancelConcurrencyResults');
-        const promoted = results.find((result) => result.body?.promoted)?.body.promoted ?? null;
+        const promotedIds = results
+          .map((result) => result.body?.promoted?.id)
+          .filter(Boolean)
+          .sort();
+        const expectedSortedPromotionIds = [...expectedPromotionIds].sort();
         const passed = Boolean(counts
-          && counts.confirmed === 1
-          && counts.waitlisted === 1
-          && counts.cancelled === 1
-          && results.length >= 2
+          && counts.confirmed === expectedCounts.confirmed
+          && counts.waitlisted === expectedCounts.waitlisted
+          && counts.cancelled === expectedCounts.cancelled
+          && results.length === selectedRsvps.length
           && results.every((result) => result.httpStatus === 200)
-          && results.every((result) => result.body?.rsvp?.id === initialRsvpId)
-          && idempotent
-          && promoted?.id === expectedPromotionId);
+          && results.every((result) => result.body?.rsvp?.id === selectedRsvps[result.index].id)
+          && results.every((result) => result.body?.rsvp?.status === 'CANCELLED')
+          && promotedIds.length === expectedSortedPromotionIds.length
+          && promotedIds.every((id, index) => id === expectedSortedPromotionIds[index]));
 
         const container = document.createElement('div');
         container.className = 'concurrency-results';
         const summary = document.createElement('div');
         summary.className = 'concurrency-summary';
         for (const [value, label] of [
-          [`${counts?.confirmed ?? '—'} / 1`, 'Confirmed / expected'],
-          [`${counts?.waitlisted ?? '—'} / 1`, 'Waitlisted / expected'],
-          [`${counts?.cancelled ?? '—'} / 1`, 'Cancelled / expected'],
-          [idempotent ? 'YES' : 'NO', 'Responses identical'],
-          [promoted?.id === expectedPromotionId ? 'PASS' : 'FAIL', 'Single FIFO promotion'],
+          [`${counts?.confirmed ?? '—'} / ${expectedCounts.confirmed}`, 'Confirmed / expected'],
+          [`${counts?.waitlisted ?? '—'} / ${expectedCounts.waitlisted}`, 'Waitlisted / expected'],
+          [`${counts?.cancelled ?? '—'} / ${expectedCounts.cancelled}`, 'Cancelled / expected'],
+          [`${results.filter((result) => result.httpStatus === 200 && result.body?.rsvp?.status === 'CANCELLED').length} / ${selectedRsvps.length}`, 'RSVPs cancelled'],
+          [promotedIds.length === expectedSortedPromotionIds.length
+            && promotedIds.every((id, index) => id === expectedSortedPromotionIds[index]) ? 'PASS' : 'FAIL', 'Waitlist promotions'],
           [passed ? 'PASS' : 'FAIL', 'Cancellation race']
         ]) {
           const tile = document.createElement('div');
@@ -1042,12 +1066,13 @@
 
         const details = document.createElement('div');
         details.className = 'hint';
-        details.textContent = `Test event: ${event.title} · ${event.id} · cancelled RSVP: ${initialRsvpId}`;
+        details.textContent = `Event: ${event.title} · ${event.id} · cancelled ${selectedRsvps.length} ${selectedRsvps[0].status.toLowerCase()} RSVPs`;
         const promotedDetails = document.createElement('div');
         promotedDetails.className = 'hint';
-        promotedDetails.textContent = promoted
-          ? `Promoted guest: ${promoted.name} · ${promoted.id}`
-          : 'No guest was promoted in the cancellation response.';
+        const promotedNames = results.map((result) => result.body?.promoted?.name).filter(Boolean);
+        promotedDetails.textContent = promotedNames.length
+          ? `Promoted guests: ${promotedNames.join(', ')}`
+          : 'No waitlisted guests were promoted.';
         container.append(summary, details, promotedDetails);
 
         const tableWrap = document.createElement('div');
@@ -1059,7 +1084,7 @@
         for (const result of results) {
           const row = document.createElement('tr');
           const attemptCell = document.createElement('td');
-          attemptCell.textContent = `Cancel attempt ${result.index + 1}`;
+          attemptCell.textContent = `Cancel RSVP ${result.index + 1}`;
           const httpCell = document.createElement('td');
           httpCell.textContent = result.httpStatus === null ? 'Network error' : String(result.httpStatus);
           const cancelledCell = document.createElement('td');
@@ -1098,91 +1123,99 @@
           showNotice('Choose between 2 and 50 simultaneous cancellation requests.', true);
           return;
         }
-        if (!confirm('This creates a test event, three RSVPs, and webhook jobs that remain in the database and queue. Continue?')) return;
+        const eventId = $('#cancelConcurrencyEventId').value.trim();
+        const selectedStatus = $('#cancelConcurrencyStatus').value;
+        if (!eventId) {
+          showNotice('Enter an event ID.', true);
+          return;
+        }
 
         const button = $('#runCancelConcurrencyButton');
         setBusy(button, true, 'Running test…');
         const output = $('#cancelConcurrencyResults');
         output.replaceChildren(Object.assign(document.createElement('div'), {
           className: 'result-empty',
-          textContent: 'Creating a test event and RSVPs, then cancelling the same RSVP simultaneously…'
+          textContent: 'Finding distinct matching RSVPs and checking the event before starting concurrent cancellations…'
         }));
-        const runId = makeKey();
-        const eventResult = await request('POST', '/events', {
-          body: JSON.stringify({
-            title: `Cancellation Concurrency Test ${new Date().toISOString()} ${runId.slice(0, 8)}`,
-            date: new Date(Date.now() + 86400000).toISOString(),
-            location: 'Automated API cancellation concurrency test',
-            capacity: 1
-          })
-        });
-        if (!eventResult.ok) {
-          output.replaceChildren(Object.assign(document.createElement('div'), {
-            className: 'result-empty',
-            textContent: 'Could not create the test event. See the latest API response for details.'
-          }));
-          setBusy(button, false);
-          return;
-        }
-
-        const testEvent = eventResult.body;
-        const seeded = [];
-        for (let index = 0; index < 3; index += 1) {
-          const guest = {
-            name: index === 0 ? 'Cancellation Test Confirmed Guest' : `Cancellation Test Waitlisted Guest ${index}`,
-            email: `cancel-concurrency-${runId}-${index + 1}@example.test`
-          };
-          try {
-            const { response, body } = await postJson(
-              `/events/${encodeURIComponent(testEvent.id)}/rsvps`,
-              guest,
-              { 'idempotency-key': `cancel-concurrency-seed-${runId}-${index + 1}` }
-            );
-            if (response.status !== 201) throw new Error(body?.error?.message ?? `HTTP ${response.status}`);
-            seeded.push(body);
-          } catch (error) {
-            output.replaceChildren(Object.assign(document.createElement('div'), {
-              className: 'result-empty',
-              textContent: `Failed to create the setup RSVPs. Test event ${testEvent.id} and any created guests remain in the database. ${error instanceof Error ? error.message : 'Request failed'}`
-            }));
-            setBusy(button, false);
-            return;
-          }
-        }
-
-        if (seeded[0].status !== 'CONFIRMED'
-          || seeded[1].status !== 'WAITLISTED'
-          || seeded[2].status !== 'WAITLISTED') {
-          output.replaceChildren(Object.assign(document.createElement('div'), {
-            className: 'result-empty',
-            textContent: `Unexpected setup RSVP statuses: ${seeded.map((rsvp) => rsvp.status).join(', ')}. Test records remain in the database.`
-          }));
-          setBusy(button, false);
-          return;
-        }
-
-        let expectedPromotionId = null;
+        let testEvent;
+        let selectedRsvps;
+        let expectedPromotionIds = [];
+        let expectedCounts;
         try {
-          const response = await fetch(`/events/${encodeURIComponent(testEvent.id)}/rsvps?limit=10`);
-          const body = await response.json();
-          if (!response.ok) throw new Error(body?.error?.message ?? `HTTP ${response.status}`);
-          expectedPromotionId = body.data.find((rsvp) => rsvp.status === 'WAITLISTED')?.id ?? null;
+          const eventResponse = await fetch(`/events/${encodeURIComponent(eventId)}`);
+          const eventBody = await eventResponse.json();
+          if (!eventResponse.ok) throw new Error(eventBody?.error?.message ?? `HTTP ${eventResponse.status}`);
+          testEvent = eventBody;
+
+          const selectedResponse = await fetch(
+            `/events/${encodeURIComponent(eventId)}/rsvps?status=${selectedStatus}&limit=100`
+          );
+          const selectedBody = await selectedResponse.json();
+          if (!selectedResponse.ok) throw new Error(selectedBody?.error?.message ?? `HTTP ${selectedResponse.status}`);
+          if (selectedBody.pagination.total < requestCount) {
+            throw new Error(
+              `Requested ${requestCount} cancellations, but only ${selectedBody.pagination.total} ` +
+              `${selectedStatus.toLowerCase()} RSVPs exist for this event.`
+            );
+          }
+          const candidates = [...selectedBody.data];
+          for (let page = 2; page <= selectedBody.pagination.totalPages && candidates.length < requestCount; page += 1) {
+            const pageResponse = await fetch(
+              `/events/${encodeURIComponent(eventId)}/rsvps?status=${selectedStatus}&limit=100&page=${page}`
+            );
+            const pageBody = await pageResponse.json();
+            if (!pageResponse.ok) throw new Error(pageBody?.error?.message ?? `HTTP ${pageResponse.status}`);
+            candidates.push(...pageBody.data);
+          }
+          for (let index = candidates.length - 1; index > 0; index -= 1) {
+            const swapIndex = Math.floor(Math.random() * (index + 1));
+            [candidates[index], candidates[swapIndex]] = [candidates[swapIndex], candidates[index]];
+          }
+          selectedRsvps = candidates.slice(0, requestCount);
+
+          if (selectedStatus === 'CONFIRMED') {
+            const waitlistResponse = await fetch(
+              `/events/${encodeURIComponent(eventId)}/rsvps?status=WAITLISTED&limit=100`
+            );
+            const waitlistBody = await waitlistResponse.json();
+            if (!waitlistResponse.ok) throw new Error(waitlistBody?.error?.message ?? `HTTP ${waitlistResponse.status}`);
+            const promotionCount = Math.min(requestCount, testEvent.counts.waitlisted);
+            expectedPromotionIds = waitlistBody.data.slice(0, promotionCount).map((rsvp) => rsvp.id);
+          }
+
+          const promotionCount = expectedPromotionIds.length;
+          expectedCounts = {
+            confirmed: testEvent.counts.confirmed
+              - (selectedStatus === 'CONFIRMED' ? requestCount : 0)
+              + promotionCount,
+            waitlisted: testEvent.counts.waitlisted
+              - (selectedStatus === 'WAITLISTED' ? requestCount : promotionCount),
+            cancelled: testEvent.counts.cancelled + requestCount
+          };
         } catch (error) {
           output.replaceChildren(Object.assign(document.createElement('div'), {
             className: 'result-empty',
-            textContent: `Could not verify the waitlist order before cancellation: ${error instanceof Error ? error.message : 'Request failed'}. Test records remain in the database.`
+            textContent: `Could not prepare cancellation test: ${error instanceof Error ? error.message : 'Request failed'}`
           }));
           setBusy(button, false);
           return;
         }
 
-        const cancellationKey = `cancel-concurrency-race-${runId}`;
-        const results = await Promise.all(Array.from({ length: requestCount }, async (_, index) => {
+        if (!confirm(
+          `This permanently cancels ${requestCount} distinct ${selectedStatus.toLowerCase()} RSVPs in event ${testEvent.title}. ` +
+          `Each cancellation creates a webhook event; the worker may send notifications. Continue?`
+        )) {
+          setBusy(button, false);
+          return;
+        }
+
+        const runId = makeKey();
+        const results = await Promise.all(selectedRsvps.map(async (rsvp, index) => {
           try {
             const { response, body } = await postJson(
-              `/rsvps/${encodeURIComponent(seeded[0].id)}/cancel`,
+              `/rsvps/${encodeURIComponent(rsvp.id)}/cancel`,
               {},
-              { 'idempotency-key': cancellationKey }
+              { 'idempotency-key': `cancel-concurrency-${runId}-${index + 1}` }
             );
             return { index, httpStatus: response.status, body };
           } catch (error) {
@@ -1196,10 +1229,8 @@
         }));
 
         let counts = null;
-        let idempotent = results.every((result) => result.httpStatus === 200)
-          && results.every((result) => JSON.stringify(result.body) === JSON.stringify(results[0]?.body));
         try {
-          const response = await fetch(`/events/${encodeURIComponent(testEvent.id)}`);
+          const response = await fetch(`/events/${encodeURIComponent(eventId)}`);
           const body = await response.json();
           if (!response.ok) throw new Error(body?.error?.message ?? `HTTP ${response.status}`);
           counts = body.counts;
@@ -1209,14 +1240,14 @@
 
         const passed = renderCancelConcurrencyResults({
           event: testEvent,
+          selectedRsvps,
           results,
           counts,
-          expectedPromotionId,
-          initialRsvpId: seeded[0].id,
-          idempotent
+          expectedCounts,
+          expectedPromotionIds
         });
         const summaryMessage = passed
-          ? `Cancellation race passed: ${requestCount} requests returned the same result and exactly one waitlisted guest was promoted.`
+          ? `Cancellation concurrency test passed: ${requestCount} distinct ${selectedStatus.toLowerCase()} RSVPs were cancelled.`
           : 'Cancellation race failed or could not verify all results. Review the individual responses and final counts.';
         setBusy(button, false);
         await loadQueue();

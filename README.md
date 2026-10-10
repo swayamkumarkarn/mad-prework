@@ -11,7 +11,8 @@ A small RSVP service built with Node.js ES modules, Fastify, PostgreSQL, Prisma,
 - A PostgreSQL partial unique index prevents duplicate active registrations for the same event and normalized email. Cancelled guests may register again.
 - The API writes each RSVP change and its outbox event in one transaction.
 - The worker polls unpublished outbox rows, publishes BullMQ jobs with the outbox ID as their stable job ID, then marks each row published. Webhook calls happen outside database transactions.
-- BullMQ retries failed HTTP requests three times, using exponential backoff beginning at one second. Delivery is at-least-once: a crash between publishing and marking an outbox row can cause the same webhook to be sent more than once. Webhook consumers should be idempotent.
+- BullMQ retries failed HTTP requests using exponential backoff beginning at one second. `WEBHOOK_MAX_RETRIES` sets retries after the initial attempt (default `2`, for three total attempts; set to `0` to disable retries). Delivery is at-least-once: a crash between publishing and marking an outbox row can cause the same webhook to be sent more than once. Webhook consumers should be idempotent.
+- The webhook worker rate-limits delivery to one job per second by default (`WEBHOOK_RATE_LIMIT_MS=1000`). Increase the interval if your receiver, such as webhook.site, has a stricter rate limit.
 - The local API console exposes BullMQ queue counts, connected worker count, and recent job status at `GET /worker/queue`. Job payloads are not exposed by this monitoring endpoint.
 - In development mode, `POST /worker/queue/test-job` enqueues an explicit test webhook delivery. It sends a real webhook request when a worker is running.
 - API requests and API/worker/outbox lifecycle and error events are persisted in PostgreSQL's `ServerLog` table. Request bodies and headers are not recorded. Logs can be browsed at `GET /server-logs` and in the test console.
@@ -53,7 +54,12 @@ A small RSVP service built with Node.js ES modules, Fastify, PostgreSQL, Prisma,
    npm run worker
    ```
 
-The API listens on `http://localhost:3000` by default. Open `http://localhost:3000/test` (or `/`) for the browser-based API testing console, or use `http://localhost:3000/health` to check the API. The console can create events, register and cancel RSVPs, inspect event details, list RSVPs with status filtering and pagination, run live API smoke and RSVP concurrency tests (including a concurrent cancellation/idempotency test), and trigger a development-only test webhook. Concurrency tests create permanent test event/RSVP/outbox records, so use a local test database. `PORT` can change the port. Stop the local services with `docker compose down`; named volumes retain data. Use `docker compose down -v` only when you intend to delete the local database and Redis data.
+The worker sends at most one webhook job per `WEBHOOK_RATE_LIMIT_MS` interval (default `1000`, one second). Configure a larger positive integer in `.env` if the webhook receiver rate-limits more strictly, then restart the worker. This queues excess jobs rather than slowing RSVP API responses.
+
+
+Set `WEBHOOK_MAX_RETRIES` to a non-negative integer to control how many retries follow the first failed delivery. The default is `2`, preserving three total attempts. Restart the API and worker after changing it; the setting applies to newly enqueued jobs.
+
+The API listens on `http://localhost:3000` by default. Open `http://localhost:3000/test` (or `/`) for the browser-based API testing console, or use `http://localhost:3000/health` to check the API. The console can create events, register and cancel RSVPs, inspect event details, list RSVPs with status filtering and pagination, run live API smoke and RSVP concurrency tests, and trigger a development-only test webhook. The cancellation concurrency test takes an existing event ID, an RSVP status, and a count; it concurrently cancels that many distinct randomly selected RSVPs of the chosen status, using a separate idempotency key for each cancellation. Cancelling confirmed RSVPs may promote waitlisted guests. These cancellations are permanent and create webhook outbox records, so use a local test event/database; the worker may deliver notifications. `PORT` can change the port. Stop the local services with `docker compose down`; named volumes retain data. Use `docker compose down -v` only when you intend to delete the local database and Redis data.
 
 Server logs are stored in PostgreSQL and retained until manually removed. The test console's **Server logs** section supports level/source filters and pagination. The API logs request method, path, status, and response time, but not request bodies or headers. Log persistence depends on PostgreSQL availability; failures to write a log are reported to the process console.
 
@@ -267,7 +273,7 @@ Run the webhook delivery unit tests without external services:
 npm test
 ```
 
-The PostgreSQL integration tests are skipped unless `TEST_DATABASE_URL` points to a dedicated test database. Those tests truncate their tables before each case, so never point this variable at a database containing data you need.
+The PostgreSQL integration tests load `.env` and run whenever `TEST_DATABASE_URL` is set. They truncate the `Event`, `Rsvp`, `IdempotencyRecord`, and `OutboxEvent` tables before each case. Point the URL only at a local/disposable database, or a database whose data you are prepared to lose; never use a production database.
 The integration suite includes automated coverage for RSVP confirmation and waitlisting at capacity, concurrent requests for the last available slot, FIFO waitlist promotion after cancellation, cancellation of waitlisted guests, and idempotency/duplicate registration behavior.
 
 PowerShell example:
@@ -278,6 +284,8 @@ $env:DATABASE_URL = $env:TEST_DATABASE_URL
 npx prisma migrate deploy
 npm test
 ```
+
+Keep `TEST_DATABASE_URL` in `.env`; the integration test loads it automatically and uses it in preference to `DATABASE_URL`. Ensure the database has the project migrations applied before running the suite.
 
 Concurrency behavior is exercised against PostgreSQL by issuing overlapping API requests and checking the resulting committed statuses. It is not inferred from mocked database calls.
 

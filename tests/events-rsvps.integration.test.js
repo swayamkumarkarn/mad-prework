@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { beforeAll, beforeEach, afterAll, describe, expect, it } from 'vitest';
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;

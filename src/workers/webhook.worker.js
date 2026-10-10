@@ -11,6 +11,10 @@ const webhookUrl = process.env.WEBHOOK_URL;
 if (!webhookUrl) throw new Error('WEBHOOK_URL must be configured to run the webhook worker');
 new URL(webhookUrl);
 
+const webhookRateLimitMs = Number(process.env.WEBHOOK_RATE_LIMIT_MS ?? 1000);
+if (!Number.isInteger(webhookRateLimitMs) || webhookRateLimitMs < 1) {
+  throw new Error('WEBHOOK_RATE_LIMIT_MS must be a positive integer');
+}
 const connection = new IORedis(process.env.REDIS_URL ?? 'redis://localhost:6379', {
   maxRetriesPerRequest: null
 });
@@ -38,7 +42,10 @@ const worker = new Worker(
       throw error;
     }
   },
-  { connection }
+  {
+    connection,
+    limiter: { max: 1, duration: webhookRateLimitMs }
+  }
 );
 
 worker.on('error', (error) => {
