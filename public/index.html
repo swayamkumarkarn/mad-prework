@@ -183,81 +183,6 @@
             <div class="card-head">
               <div class="card-title-row">
                 <div>
-                  <h2>RSVP concurrency test</h2>
-                  <p class="hint">Send simultaneous registrations and verify capacity and waitlist behavior.</p>
-                </div>
-                <span class="step">↗</span>
-              </div>
-            </div>
-            <div class="card-body">
-              <form id="concurrencyForm">
-                <div class="form-grid">
-                  <div class="field">
-                    <label for="concurrencyCapacity">Event capacity</label>
-                    <input id="concurrencyCapacity" type="number" min="1" max="99" value="3" required>
-                  </div>
-                  <div class="field">
-                    <label for="concurrencyRequests">Simultaneous requests</label>
-                    <input id="concurrencyRequests" type="number" min="2" max="100" value="10" required>
-                  </div>
-                </div>
-                <div class="actions">
-                  <button class="button primary" id="runConcurrencyButton" type="submit">Run concurrency test</button>
-                </div>
-              </form>
-              <div class="section-divider"></div>
-              <p class="hint">This creates a new event, test RSVPs, and webhook outbox jobs that are kept in your database and queue. Use a local test database. The webhook worker may deliver notifications to your configured receiver.</p>
-              <div class="section-divider"></div>
-              <div id="concurrencyResults">
-                <div class="result-empty">Run the test to see each concurrent response and the final capacity counts.</div>
-              </div>
-            </div>
-          </section>
-
-          <section class="card">
-            <div class="card-head">
-              <div class="card-title-row">
-                <div>
-                  <h2>Concurrent RSVP cancellation test</h2>
-                  <p class="hint">Choose an event and cancel multiple confirmed or waitlisted RSVPs simultaneously.</p>
-                </div>
-                <span class="step">↻</span>
-              </div>
-            </div>
-            <div class="card-body">
-              <form id="cancelConcurrencyForm">
-              <div class="field">
-                <label for="cancelConcurrencyEventId">Event ID</label>
-                <input id="cancelConcurrencyEventId" type="text" placeholder="Paste an existing event UUID" required>
-              </div>
-              <div class="field">
-                <label for="cancelConcurrencyStatus">RSVP status to cancel</label>
-                <select id="cancelConcurrencyStatus" required>
-                  <option value="CONFIRMED">Any confirmed RSVP</option>
-                  <option value="WAITLISTED">Any waitlisted RSVP</option>
-                </select>
-              </div>
-              <div class="field" style="max-width: 230px">
-                <label for="cancelConcurrencyRequests">Distinct RSVPs to cancel concurrently</label>
-                <input id="cancelConcurrencyRequests" type="number" min="2" max="50" value="10" required>
-                </div>
-                <div class="actions">
-                  <button class="button primary" id="runCancelConcurrencyButton" type="submit">Run cancellation concurrency test</button>
-                </div>
-              </form>
-              <div class="section-divider"></div>
-              <p class="hint">This permanently cancels the selected number of distinct RSVPs and creates cancellation webhook outbox jobs. Use a test event; the worker may send notifications to your configured receiver.</p>
-              <div class="section-divider"></div>
-              <div id="cancelConcurrencyResults">
-                <div class="result-empty">Enter an event ID, select an RSVP status, and choose how many distinct RSVPs to cancel concurrently.</div>
-              </div>
-            </div>
-          </section>
-
-          <section class="card">
-            <div class="card-head">
-              <div class="card-title-row">
-                <div>
                   <h2>API smoke tests</h2>
                   <p class="hint">Check live health, event listing, and worker queue endpoints.</p>
                 </div>
@@ -434,6 +359,82 @@
               </div>
               <div id="rsvpTable">
                 <div class="result-empty">Create or select an event, then load its RSVPs.</div>
+              </div>
+            </div>
+          </section>
+
+
+                    <section class="card">
+            <div class="card-head">
+              <div class="card-title-row">
+                <div>
+                  <h2>RSVP concurrency test</h2>
+                  <p class="hint">Send simultaneous registrations and verify capacity and waitlist behavior.</p>
+                </div>
+                <span class="step">↗</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <form id="concurrencyForm">
+                <div class="form-grid">
+                  <div class="field">
+                    <label for="concurrencyCapacity">Event capacity</label>
+                    <input id="concurrencyCapacity" type="number" min="1" max="99" value="3" required>
+                  </div>
+                  <div class="field">
+                    <label for="concurrencyRequests">Simultaneous requests</label>
+                    <input id="concurrencyRequests" type="number" min="2" max="100" value="10" required>
+                  </div>
+                </div>
+                <div class="actions">
+                  <button class="button primary" id="runConcurrencyButton" type="submit">Run concurrency test</button>
+                </div>
+              </form>
+              <div class="section-divider"></div>
+              <p class="hint">This creates a new event, test RSVPs, and webhook outbox jobs that are kept in your database and queue. Use a local test database. The webhook worker may deliver notifications to your configured receiver.</p>
+              <div class="section-divider"></div>
+              <div id="concurrencyResults">
+                <div class="result-empty">Run the test to see each concurrent response and the final capacity counts.</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div class="card-title-row">
+                <div>
+                  <h2>Concurrent RSVP cancellation test</h2>
+                  <p class="hint">Choose an event and cancel multiple confirmed or waitlisted RSVPs simultaneously.</p>
+                </div>
+                <span class="step">↻</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <form id="cancelConcurrencyForm">
+              <div class="field">
+                <label for="cancelConcurrencyEventId">Event ID</label>
+                <input id="cancelConcurrencyEventId" type="text" placeholder="Paste an existing event UUID" required>
+              </div>
+              <div class="field">
+                <label for="cancelConcurrencyStatus">RSVP status to cancel</label>
+                <select id="cancelConcurrencyStatus" required>
+                  <option value="CONFIRMED">Any confirmed RSVP</option>
+                  <option value="WAITLISTED">Any waitlisted RSVP</option>
+                </select>
+              </div>
+              <div class="field" style="max-width: 230px">
+                <label for="cancelConcurrencyRequests">Distinct RSVPs to cancel concurrently</label>
+                <input id="cancelConcurrencyRequests" type="number" min="2" max="50" value="10" required>
+                </div>
+                <div class="actions">
+                  <button class="button primary" id="runCancelConcurrencyButton" type="submit">Run cancellation concurrency test</button>
+                </div>
+              </form>
+              <div class="section-divider"></div>
+              <p class="hint">This permanently cancels the selected number of distinct RSVPs and creates cancellation webhook outbox jobs. Use a test event; the worker may send notifications to your configured receiver.</p>
+              <div class="section-divider"></div>
+              <div id="cancelConcurrencyResults">
+                <div class="result-empty">Enter an event ID, select an RSVP status, and choose how many distinct RSVPs to cancel concurrently.</div>
               </div>
             </div>
           </section>
