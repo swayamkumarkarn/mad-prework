@@ -149,7 +149,7 @@ Under time pressure, the implementation prioritized the core RSVP state transiti
 
 ## AI assistance
 
-AI tools helped draft and refine implementation code, automated tests, and project documentation, including the API console and architecture/load-testing guides. Generated suggestions were checked against the actual code and tests rather than treated as authoritative. In particular, the design documentation distinguishes outbox publication retries from BullMQ delivery retries, describes webhook delivery as at-least-once rather than exactly-once, and notes that a successful `prisma generate` does not apply database migrations. Automated tests are not a substitute for running the PostgreSQL integration suite against a dedicated test database.
+I drafted and refined the implementation code, automated tests, and project documentation, including the API console and architecture and load-testing guides, using AI tools as an aid. I reviewed the generated suggestions against the actual code and tests to ensure accuracy. I also ensured the documentation clearly distinguishes outbox publication retries from BullMQ delivery retries, describes webhook delivery as at-least-once rather than exactly-once, and clarifies that running `prisma generate` does not apply database migrations. I also noted that automated tests alone are insufficient and that the PostgreSQL integration suite must be run against a dedicated test database.
 
 ## Scope and production considerations
 
